@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Tic Tac Toe — dark theme with neon accents" />
+  <title>Tic·Tac·Toe</title>
+
+  <!-- Google Fonts: Orbitron for the sci-fi / retro-arcade look -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="page-wrapper">
+    <header class="site-header">
+      <h1 class="logo">
+        TIC<span class="x-color">✕</span>TAC<span class="o-color">○</span>TOE
+      </h1>
+    </header>
+
+    <main class="game-container">
+
+      <!-- Turn indicator -->
+      <div class="turn-indicator is-x" id="turnIndicator" aria-live="polite" aria-atomic="true">
+        Player <span class="player-symbol" id="currentPlayerSymbol">X</span>'s turn
+      </div>
+
+      <!-- Game board: 3×3 grid of cells -->
+      <div
+        class="board"
+        id="board"
+        role="grid"
+        aria-label="Tic Tac Toe Board"
+      >
+        <div class="cell" data-index="0" role="gridcell" tabindex="0" aria-label="Cell 1, empty"></div>
+        <div class="cell" data-index="1" role="gridcell" tabindex="0" aria-label="Cell 2, empty"></div>
+        <div class="cell" data-index="2" role="gridcell" tabindex="0" aria-label="Cell 3, empty"></div>
+        <div class="cell" data-index="3" role="gridcell" tabindex="0" aria-label="Cell 4, empty"></div>
+        <div class="cell" data-index="4" role="gridcell" tabindex="0" aria-label="Cell 5, empty"></div>
+        <div class="cell" data-index="5" role="gridcell" tabindex="0" aria-label="Cell 6, empty"></div>
+        <div class="cell" data-index="6" role="gridcell" tabindex="0" aria-label="Cell 7, empty"></div>
+        <div class="cell" data-index="7" role="gridcell" tabindex="0" aria-label="Cell 8, empty"></div>
+        <div class="cell" data-index="8" role="gridcell" tabindex="0" aria-label="Cell 9, empty"></div>
+      </div>
+
+      <!-- Status / result message (screen-reader live region) -->
+      <div
+        class="status-message"
+        id="statusMessage"
+        aria-live="polite"
+        aria-atomic="true"
+      ></div>
+
+      <!-- Control buttons -->
+      <div class="controls">
+        <button class="btn btn-primary" id="newGameBtn" type="button">New Game</button>
+        <button class="btn btn-ghost"   id="resetScoreBtn" type="button">Reset Score</button>
+      </div>
+
+      <!-- Scoreboard -->
+      <div class="scoreboard" aria-label="Scoreboard">
+        <div class="score-card score-x active-player" id="scoreCardX">
+          <span class="score-label">Player X</span>
+          <span class="score-value" id="scoreX">0</span>
+        </div>
+        <div class="score-card score-draw" id="scoreCardDraw">
+          <span class="score-label">Draws</span>
+          <span class="score-value" id="scoreDraw">0</span>
+        </div>
+        <div class="score-card score-o" id="scoreCardO">
+          <span class="score-label">Player O</span>
+          <span class="score-value" id="scoreO">0</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,456 @@
+/* =============================================================================
+   Tic-Tac-Toe — Dark Theme with Neon Accent Styling
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   1. DESIGN TOKENS (CSS Custom Properties)
+   --------------------------------------------------------------------------- */
+:root {
+  /* --- Backgrounds --- */
+  --bg-page:       #0d0d0d;  /* near-black page background                 */
+  --bg-surface:    #161616;  /* dark-grey card surface (board, scoreboard)  */
+  --bg-cell:       #1c1c1c;  /* individual cell background                  */
+  --bg-cell-hover: #222222;  /* cell hover state                            */
+
+  /* --- Neon accent colours --- */
+  --neon-x:    #00f5ff;      /* electric cyan   — X player                  */
+  --neon-o:    #ff00c8;      /* hot pink/magenta — O player                 */
+  --neon-draw: #ffd700;      /* gold             — draw state               */
+
+  /* --- Borders & dividers --- */
+  --border-subtle: #2a2a2a;
+  --border-bright: #3a3a3a;
+
+  /* --- Text --- */
+  --text-primary: #e8e8e8;
+  --text-dim:     #666666;
+  --text-muted:   #444444;
+
+  /* --- Glow definitions (used in text-shadow / box-shadow) --- */
+  --glow-x-soft: 0 0 8px #00f5ff66, 0 0 20px #00f5ff33;
+  --glow-x-hard: 0 0 6px #00f5ff,   0 0 20px #00f5ffaa, 0 0 40px #00f5ff44;
+  --glow-o-soft: 0 0 8px #ff00c866, 0 0 20px #ff00c833;
+  --glow-o-hard: 0 0 6px #ff00c8,   0 0 20px #ff00c8aa, 0 0 40px #ff00c844;
+  --glow-draw:   0 0 8px #ffd70066, 0 0 20px #ffd70033;
+}
+
+/* ---------------------------------------------------------------------------
+   2. RESET & BASE
+   --------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Orbitron', 'Share Tech Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Subtle scanline texture for the retro-arcade feel */
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   3. PAGE LAYOUT
+   --------------------------------------------------------------------------- */
+.page-wrapper {
+  width: 100%;
+  max-width: 480px;
+  padding: 1.5rem;
+}
+
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   4. HEADER / LOGO
+   --------------------------------------------------------------------------- */
+.site-header {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.logo {
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  /* Subtle glow on the whole logo title */
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+}
+
+/* Neon-coloured letters embedded in the logo */
+.x-color {
+  color: var(--neon-x);
+  text-shadow: var(--glow-x-soft);
+}
+
+.o-color {
+  color: var(--neon-o);
+  text-shadow: var(--glow-o-soft);
+}
+
+/* ---------------------------------------------------------------------------
+   5. TURN INDICATOR
+   --------------------------------------------------------------------------- */
+.turn-indicator {
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  color: var(--text-primary);
+  text-align: center;
+  transition: color 0.3s ease;
+  min-height: 1.6rem;
+}
+
+.player-symbol {
+  font-weight: 900;
+  font-size: 1.2em;
+  display: inline-block;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* JS adds .is-x or .is-o to #turnIndicator */
+.turn-indicator.is-x .player-symbol {
+  color: var(--neon-x);
+  text-shadow: var(--glow-x-soft);
+}
+
+.turn-indicator.is-o .player-symbol {
+  color: var(--neon-o);
+  text-shadow: var(--glow-o-soft);
+}
+
+/* ---------------------------------------------------------------------------
+   6. BOARD & CELLS
+   --------------------------------------------------------------------------- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  /* The gap color acts as the grid-line colour */
+  background: var(--border-subtle);
+  border: 2px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  width: min(90vw, 360px);
+  aspect-ratio: 1;
+  /* Subtle inset glow on the board container */
+  box-shadow: 0 0 30px rgba(0, 245, 255, 0.04), 0 0 60px rgba(255, 0, 200, 0.03);
+}
+
+.cell {
+  background: var(--bg-cell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2.5rem, 10vw, 4rem);
+  font-weight: 900;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, box-shadow 0.2s ease;
+  aspect-ratio: 1;
+  /* Focus outline handled separately via :focus-visible */
+  outline: none;
+  position: relative;
+}
+
+/* Hover — only for empty, active cells */
+.cell:not(.taken):hover {
+  background: var(--bg-cell-hover);
+}
+
+/* Keyboard focus indicator (accessibility) */
+.cell:focus-visible {
+  outline: 2px solid var(--border-bright);
+  outline-offset: -2px;
+  background: var(--bg-cell-hover);
+}
+
+/* --- X mark (placed via ::before pseudo-element) --- */
+.cell.x-piece::before {
+  content: 'X';
+  color: var(--neon-x);
+  text-shadow: var(--glow-x-hard);
+  animation: popIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* --- O mark (placed via ::before pseudo-element) --- */
+.cell.o-piece::before {
+  content: 'O';
+  color: var(--neon-o);
+  text-shadow: var(--glow-o-hard);
+  animation: popIn 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* --- Winning cell highlight --- */
+.cell.winning {
+  background: #1e1e1e;
+}
+
+.cell.winning.x-piece {
+  box-shadow: inset 0 0 18px #00f5ff44;
+  /* Override the normal text-shadow with an even brighter one */
+}
+
+.cell.winning.x-piece::before {
+  text-shadow:
+    0 0 4px #00f5ff,
+    0 0 12px #00f5ff,
+    0 0 30px #00f5ffcc,
+    0 0 60px #00f5ff55;
+  animation: winPulse 1.2s ease-in-out infinite alternate;
+}
+
+.cell.winning.o-piece {
+  box-shadow: inset 0 0 18px #ff00c844;
+}
+
+.cell.winning.o-piece::before {
+  text-shadow:
+    0 0 4px #ff00c8,
+    0 0 12px #ff00c8,
+    0 0 30px #ff00c8cc,
+    0 0 60px #ff00c855;
+  animation: winPulse 1.2s ease-in-out infinite alternate;
+}
+
+/* --- Occupied cells: no pointer, no hover effect --- */
+.cell.taken {
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------------
+   7. STATUS / RESULT MESSAGE
+   --------------------------------------------------------------------------- */
+.status-message {
+  min-height: 1.8rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  transition: opacity 0.3s ease;
+}
+
+.status-message.win-x {
+  color: var(--neon-x);
+  text-shadow: var(--glow-x-soft);
+}
+
+.status-message.win-o {
+  color: var(--neon-o);
+  text-shadow: var(--glow-o-soft);
+}
+
+.status-message.draw {
+  color: var(--neon-draw);
+  text-shadow: var(--glow-draw);
+}
+
+/* ---------------------------------------------------------------------------
+   8. BUTTONS
+   --------------------------------------------------------------------------- */
+.controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  padding: 0.65rem 1.5rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  /* Remove browser default button style artefacts */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Primary button — cyan neon border, fills on hover */
+.btn-primary {
+  background: transparent;
+  border: 2px solid var(--neon-x);
+  color: var(--neon-x);
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  background: var(--neon-x);
+  color: #000;
+  box-shadow: var(--glow-x-hard);
+  outline: none;
+}
+
+.btn-primary:active {
+  filter: brightness(0.85);
+}
+
+/* Ghost button — dim border, turns magenta on hover */
+.btn-ghost {
+  background: transparent;
+  border: 2px solid var(--border-bright);
+  color: var(--text-dim);
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
+  border-color: var(--neon-o);
+  color: var(--neon-o);
+  box-shadow: var(--glow-o-soft);
+  outline: none;
+}
+
+.btn-ghost:active {
+  filter: brightness(0.85);
+}
+
+/* ---------------------------------------------------------------------------
+   9. SCOREBOARD
+   --------------------------------------------------------------------------- */
+.scoreboard {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.score-card {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.score-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.score-value {
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* X score card */
+.score-x .score-value {
+  color: var(--neon-x);
+  text-shadow: var(--glow-x-soft);
+}
+
+.score-x.active-player {
+  border-color: var(--neon-x);
+  box-shadow: 0 0 12px #00f5ff22;
+}
+
+/* O score card */
+.score-o .score-value {
+  color: var(--neon-o);
+  text-shadow: var(--glow-o-soft);
+}
+
+.score-o.active-player {
+  border-color: var(--neon-o);
+  box-shadow: 0 0 12px #ff00c822;
+}
+
+/* Draw score card */
+.score-draw .score-value {
+  color: var(--neon-draw);
+  text-shadow: var(--glow-draw);
+}
+
+/* ---------------------------------------------------------------------------
+   10. KEYFRAME ANIMATIONS
+   --------------------------------------------------------------------------- */
+
+/* Pop-in: mark appears with a quick spring bounce */
+@keyframes popIn {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Win pulse: winning marks gently breathe */
+@keyframes winPulse {
+  from {
+    opacity: 0.75;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   11. RESPONSIVE ADJUSTMENTS
+   --------------------------------------------------------------------------- */
+@media (max-width: 380px) {
+  .logo {
+    font-size: 1.2rem;
+  }
+
+  .score-value {
+    font-size: 1.5rem;
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+  }
+
+  .score-label {
+    font-size: 0.55rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn {
+    text-align: center;
+  }
+}

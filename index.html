@@ -149,6 +149,23 @@
     }
 
     /* =========================================================
+       Board Entrance Animation
+       Plays once on page load: subtle lift-in (translateY + scale).
+       fill-mode: both prevents a flash-of-invisible before the
+       animation fires (avoids CLS on slow renders).
+       ========================================================= */
+    @keyframes board-enter {
+      from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* =========================================================
        Board (3×3 Grid)
        ========================================================= */
     .board {
@@ -156,6 +173,7 @@
       grid-template-columns: repeat(3, var(--cell-size));
       grid-template-rows: repeat(3, var(--cell-size));
       gap: var(--gap);
+      animation: board-enter 0.5s ease-out both;
     }
 
     /* =========================================================
@@ -188,6 +206,25 @@
       transform: scale(1.04);
     }
 
+    /* =========================================================
+       Player-Aware Hover Glow on Empty Cells
+       Uses CSS general sibling combinator so the active player's
+       neon color glows on hover — zero JavaScript required.
+       Works because .turn-indicator precedes .board in the DOM
+       and game.js toggles .is-x / .is-o on #turnIndicator.
+       ========================================================= */
+    /* Cyan glow when it is X's turn */
+    .turn-indicator.is-x ~ .board .cell:not(.taken):hover {
+      box-shadow: 0 0 14px var(--color-x-glow), 0 0 28px var(--color-x-glow);
+      border-color: var(--color-x);
+    }
+
+    /* Magenta glow when it is O's turn */
+    .turn-indicator.is-o ~ .board .cell:not(.taken):hover {
+      box-shadow: 0 0 14px var(--color-o-glow), 0 0 28px var(--color-o-glow);
+      border-color: var(--color-o);
+    }
+
     /* Focus ring for keyboard navigation */
     .cell:focus-visible {
       border-color: var(--color-x);
@@ -197,6 +234,25 @@
     /* Taken cells are not clickable-looking */
     .cell.taken {
       cursor: default;
+    }
+
+    /* =========================================================
+       Mark Appear Animation
+       Plays once when X or O is placed in a cell.
+       Uses spring-curve cubic-bezier for an organic "pop" feel.
+       display:inline-block is required so CSS transforms apply
+       to the ::after pseudo-element.
+       ========================================================= */
+    @keyframes mark-appear {
+      from {
+        display: inline-block;
+        transform: scale(0) rotate(-15deg);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
+      }
     }
 
     /* =========================================================
@@ -211,6 +267,8 @@
 
     .cell.x-piece::after {
       content: '✕';
+      display: inline-block;
+      animation: mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
 
     /* =========================================================
@@ -225,6 +283,8 @@
 
     .cell.o-piece::after {
       content: '○';
+      display: inline-block;
+      animation: mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
 
     /* =========================================================
@@ -239,8 +299,14 @@
     }
 
     @keyframes winning-pulse {
-      from { box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow); }
-      to   { box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow); }
+      from {
+        box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow);
+        transform: scale(1.0);
+      }
+      to {
+        box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow);
+        transform: scale(1.03);
+      }
     }
 
     /* =========================================================
@@ -282,7 +348,10 @@
     }
 
     .btn:focus-visible {
-      box-shadow: 0 0 0 3px var(--color-x-glow);
+      /* Neon outline + glow for unambiguous keyboard focus indication */
+      outline: 2px solid var(--color-x);
+      outline-offset: 3px;
+      box-shadow: 0 0 0 4px var(--color-x-glow), 0 0 12px var(--color-x-glow);
     }
 
     .btn:active {
@@ -310,6 +379,7 @@
     .btn-ghost:hover {
       color: var(--color-text);
       border-color: var(--color-muted);
+      box-shadow: 0 0 8px var(--color-muted);
     }
 
     /* =========================================================
@@ -335,7 +405,8 @@
       border-radius: var(--radius);
       border: 1px solid var(--color-border);
       background-color: var(--bg-surface);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      /* Include transform so the scale slides smoothly on active-player toggle */
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
     }
 
     .score-card.score-x {
@@ -345,6 +416,7 @@
     .score-card.score-x.active-player {
       border-color: var(--color-x);
       box-shadow: 0 0 10px var(--color-x-glow);
+      transform: scale(1.04);
     }
 
     .score-card.score-o {
@@ -354,6 +426,7 @@
     .score-card.score-o.active-player {
       border-color: var(--color-o);
       box-shadow: 0 0 10px var(--color-o-glow);
+      transform: scale(1.04);
     }
 
     .score-card.score-draw {
@@ -411,6 +484,33 @@
       .page-wrapper {
         padding: 2.5rem 1.5rem 4rem;
         gap: 2rem;
+      }
+    }
+
+    /* =========================================================
+       Accessibility: Reduced Motion
+       Disables non-essential keyframe animations and minimises
+       transition durations for users who have requested reduced
+       motion in their OS accessibility settings.
+       Logical state changes (colour, border) still apply instantly.
+       ========================================================= */
+    @media (prefers-reduced-motion: reduce) {
+      /* Disable all keyframe-driven animations */
+      .board,
+      .cell.winning,
+      .cell.x-piece::after,
+      .cell.o-piece::after {
+        animation: none !important;
+      }
+
+      /* Collapse transition durations to near-zero so state
+         changes remain functionally visible without motion */
+      .cell,
+      .turn-indicator,
+      .score-card,
+      .btn,
+      .status-message {
+        transition-duration: 0.01ms !important;
       }
     }
   </style>

@@ -91,6 +91,7 @@ function checkDraw(boardState) {
 function updateTurnIndicator() {
   currentPlayerSymbol.textContent = currentPlayer;
   turnIndicator.className = `turn-indicator is-${currentPlayer.toLowerCase()}`;
+  turnIndicator.setAttribute('aria-label', `Player ${currentPlayer}'s turn`);
 }
 
 /** Highlight the active player's score card. */
@@ -135,12 +136,22 @@ function renderCell(cellEl, index) {
   } else {
     cellEl.setAttribute('aria-label', `Cell ${position}, empty`);
     cellEl.setAttribute('tabindex', '0');
+    cellEl.setAttribute('aria-disabled', 'false');
   }
 }
 
 /** Re-render all 9 cells from the current board state. */
 function renderBoard() {
   cells.forEach((cellEl, index) => renderCell(cellEl, index));
+}
+
+/** Mark all remaining empty cells as aria-disabled when the game ends. */
+function disableEmptyCells() {
+  cells.forEach((cellEl, index) => {
+    if (board[index] === null) {
+      cellEl.setAttribute('aria-disabled', 'true');
+    }
+  });
 }
 
 /* ---------------------------------------------------------------------------
@@ -169,6 +180,9 @@ function handleMove(index) {
 
     // Apply winning CSS class to the winning cells
     winLine.forEach((idx) => cells[idx].classList.add('winning'));
+
+    // Disable remaining empty cells
+    disableEmptyCells();
 
     // Show status
     statusMessage.textContent = `Player ${currentPlayer} wins!`;

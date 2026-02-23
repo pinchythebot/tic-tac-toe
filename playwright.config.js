@@ -15,8 +15,8 @@ const config = {
   },
   projects: [
     {
-      name: 'firefox',
-      use: { browserName: 'firefox' },
+      name: 'chromium',
+      use: { browserName: 'chromium' },
     },
   ],
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],

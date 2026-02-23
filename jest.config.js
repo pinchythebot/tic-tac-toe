@@ -1,0 +1,8 @@
+/** @type {import('jest').Config} */
+module.exports = {
+  testEnvironment: 'jsdom',
+  testMatch: ['**/__tests__/**/*.test.js'],
+  verbose: true,
+  collectCoverageFrom: ['game.js'],
+  coverageReporters: ['text', 'lcov'],
+};

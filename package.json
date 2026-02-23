@@ -1,0 +1,21 @@
+{
+  "name": "84724d4f-593c-40f1-8340-bf6409d5fba1",
+  "version": "1.0.0",
+  "description": "A simple tic-tac-toe game built autonomously by Vibe Coder.",
+  "main": "game.js",
+  "scripts": {
+    "test": "jest",
+    "test:unit": "jest __tests__/game.logic.test.js",
+    "test:dom": "jest __tests__/game.dom.test.js",
+    "test:e2e": "playwright test __tests__/game.e2e.spec.js",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0"
+  }
+}

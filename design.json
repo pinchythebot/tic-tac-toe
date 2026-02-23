@@ -1,0 +1,243 @@
+{
+  "feature": "Add smooth CSS animations and neon visual effects",
+  "branch_name": "feature/css-animations-neon-effects",
+  "analysis": {
+    "existing_animations": [
+      "winning-pulse keyframe (box-shadow pulse on .cell.winning, infinite alternate)",
+      "transition on .turn-indicator (border-color 0.2s ease, box-shadow 0.2s ease)",
+      "transition on .cell (background-color, border-color, box-shadow, transform — 0.15s)",
+      "transition on .btn (background-color, border-color, box-shadow, transform — 0.15s)",
+      "transition on .score-card (border-color, box-shadow — 0.2s)",
+      "transition on .status-message (opacity 0.25s ease)",
+      ".cell:not(.taken):hover — transform: scale(1.04), bg-color, border-color"
+    ],
+    "gaps_requiring_new_work": [
+      "No mark-appear animation when X/O is placed (cells appear instantaneously)",
+      "No player-aware neon glow on empty cell hover (only scale transform + bg color)",
+      "No board entrance animation on page load",
+      "No prefers-reduced-motion media query anywhere in CSS",
+      "Button focus-visible uses only box-shadow — no outline neon border",
+      "Scoreboard active-player transition lacks transform for subtle scale emphasis"
+    ],
+    "already_satisfied": [
+      "winning-pulse keyframe satisfies the pulsing neon glow on .winning cells",
+      "turn-indicator transitions (border-color/box-shadow) handle smooth active-player shift",
+      "score-card transitions (border-color/box-shadow) enable smooth highlight slide",
+      "btn-primary:hover has neon box-shadow glow — minor enhancement only needed",
+      "Design tokens --color-x-glow, --color-o-glow, --color-win-glow already defined"
+    ],
+    "css_sibling_strategy": "The HTML order <div.turn-indicator.is-x> precedes <div.board> inside .game-container, enabling the CSS general sibling combinator (.turn-indicator.is-x ~ .board .cell:not(.taken):hover) to target empty cell hover color based on whose turn it is — pure CSS, zero JS changes."
+  },
+  "implementation_plan": [
+    {
+      "step": 1,
+      "description": "Add @keyframes mark-appear for cell mark placement animation. Define a spring-style entry (scale 0→1, rotate -15deg→0deg, opacity 0→1). Add display:inline-block to .cell.x-piece::after and .cell.o-piece::after so transforms apply to the pseudo-element. Wire animation: mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards to both pseudo-elements.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 2,
+      "description": "Enhance the existing winning-pulse @keyframes to also animate transform: scale() between 1.0 and 1.03 alongside the existing box-shadow oscillation, making the winning cells feel more alive without changing their layout flow.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 3,
+      "description": "Add player-aware hover glow on empty cells using CSS sibling combinator. Two new rule sets: .turn-indicator.is-x ~ .board .cell:not(.taken):hover adds cyan box-shadow; .turn-indicator.is-o ~ .board .cell:not(.taken):hover adds magenta box-shadow. No JS changes required.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 4,
+      "description": "Enhance scoreboard active-player indicator: add transform to the .score-card transition property list (transform 0.2s ease) and add transform: scale(1.04) to .score-card.active-player so the active card gently grows. This creates a smooth slide-like emphasis effect between X and O cards.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 5,
+      "description": "Improve button focus/hover neon states. For .btn:focus-visible, supplement the existing box-shadow with outline: 2px solid and the matching glow color so keyboard focus is unambiguously neon. Ensure .btn-ghost:hover gains a subtle neon border glow matching the color-muted palette. Keep existing .btn-primary:hover glow but strengthen slightly.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 6,
+      "description": "Add @keyframes board-enter (translateY(24px) scale(0.97) opacity:0 → translateY(0) scale(1) opacity:1) and apply animation: board-enter 0.5s ease-out both to the .board selector. This gives a subtle slide-up + scale entrance on first paint.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 7,
+      "description": "Add @media (prefers-reduced-motion: reduce) block as the final section of the stylesheet. Inside it: set animation: none !important on .board, .cell.winning, .cell.x-piece::after, .cell.o-piece::after; set transition-duration: 0.01ms !important on .cell, .turn-indicator, .score-card, .btn, .status-message to preserve logical state changes without motion.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 8,
+      "description": "Run the full existing test suite (npm test) and Playwright E2E tests (npx playwright test) to confirm all CSS changes are additive and no JS behavior is broken. Add targeted Playwright tests for animation CSS properties.",
+      "files": ["__tests__/game.e2e.spec.js"]
+    }
+  ],
+  "file_changes": [
+    {
+      "path": "index.html",
+      "section": "Keyframes — new additions",
+      "changes": [
+        {
+          "name": "@keyframes mark-appear",
+          "css": "@keyframes mark-appear { from { display: inline-block; transform: scale(0) rotate(-15deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }",
+          "rationale": "Spring-curve entry via cubic-bezier(0.34, 1.56, 0.64, 1) gives an organic 'pop' without JS"
+        },
+        {
+          "name": "@keyframes board-enter",
+          "css": "@keyframes board-enter { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }",
+          "rationale": "Subtle lift-in on first paint, plays once with fill-mode: both"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": "Existing keyframes — modifications",
+      "changes": [
+        {
+          "name": "@keyframes winning-pulse (enhancement)",
+          "from": "@keyframes winning-pulse { from { box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow); } to   { box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow); } }",
+          "to": "@keyframes winning-pulse { from { box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow); transform: scale(1.0); } to   { box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow); transform: scale(1.03); } }",
+          "rationale": "Adds micro-scale pulse to complement box-shadow oscillation"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": ".cell.x-piece::after and .cell.o-piece::after",
+      "changes": [
+        {
+          "property": "display",
+          "value": "inline-block",
+          "rationale": "Required for CSS transform to apply to a pseudo-element"
+        },
+        {
+          "property": "animation",
+          "value": "mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+          "rationale": "Triggers once per mark placement; forwards keeps the end state"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": ".cell:not(.taken):hover — player-aware glow additions",
+      "changes": [
+        {
+          "selector": ".turn-indicator.is-x ~ .board .cell:not(.taken):hover",
+          "css": "box-shadow: 0 0 14px var(--color-x-glow), 0 0 28px var(--color-x-glow);",
+          "rationale": "Cyan glow when it is X's turn — pure CSS sibling combinator, no JS"
+        },
+        {
+          "selector": ".turn-indicator.is-o ~ .board .cell:not(.taken):hover",
+          "css": "box-shadow: 0 0 14px var(--color-o-glow), 0 0 28px var(--color-o-glow);",
+          "rationale": "Magenta glow when it is O's turn"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": ".score-card — active-player enhancement",
+      "changes": [
+        {
+          "selector": ".score-card (transition property list)",
+          "from": "transition: border-color 0.2s ease, box-shadow 0.2s ease;",
+          "to": "transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;",
+          "rationale": "Enables animated scale on active-player toggle"
+        },
+        {
+          "selector": ".score-card.active-player",
+          "css_add": "transform: scale(1.04);",
+          "rationale": "Active card gently enlarges, creating perceivable 'slide-highlight' without a literal moving element"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": ".btn focus/hover neon border states",
+      "changes": [
+        {
+          "selector": ".btn:focus-visible",
+          "from": "box-shadow: 0 0 0 3px var(--color-x-glow);",
+          "to": "outline: 2px solid var(--color-x); outline-offset: 3px; box-shadow: 0 0 0 4px var(--color-x-glow), 0 0 12px var(--color-x-glow);",
+          "rationale": "Combines outline (neon border) + glow box-shadow for unmistakable keyboard focus"
+        },
+        {
+          "selector": ".btn-ghost:hover",
+          "css_add": "box-shadow: 0 0 8px var(--color-muted);",
+          "rationale": "Subtle neon border-echo on the ghost button's hover"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": ".board — entrance animation",
+      "changes": [
+        {
+          "property": "animation",
+          "value": "board-enter 0.5s ease-out both",
+          "rationale": "One-shot entrance on page load; fill-mode both prevents flash-of-invisible"
+        }
+      ]
+    },
+    {
+      "path": "index.html",
+      "section": "@media (prefers-reduced-motion: reduce) — NEW block at end of stylesheet",
+      "changes": [
+        {
+          "description": "Disable all keyframe animations on affected elements",
+          "selectors": [".board", ".cell.winning", ".cell.x-piece::after", ".cell.o-piece::after"],
+          "css": "animation: none !important;"
+        },
+        {
+          "description": "Minimize transition durations to near-zero (logical state still changes, just instantly)",
+          "selectors": [".cell", ".turn-indicator", ".score-card", ".btn", ".status-message"],
+          "css": "transition-duration: 0.01ms !important;"
+        }
+      ]
+    }
+  ],
+  "new_files": [],
+  "css_architecture_notes": {
+    "no_js_changes_required": true,
+    "sibling_combinator_trick": "The .turn-indicator.is-x ~ .board CSS sibling selector pattern works because game.js already toggles is-x/is-o classes on #turnIndicator (via updateTurnIndicator()), and .board is a subsequent sibling in the DOM. This gives player-aware hover glow with zero new JavaScript.",
+    "pseudo_element_animation": "Animating ::after requires display:inline-block or display:block on the pseudo-element so CSS transforms apply. The font-size and color are inherited from the parent .cell, so adding display:inline-block is safe.",
+    "transform_on_winning_cells": "Adding transform:scale() to the winning-pulse keyframe works because .cell already has position:relative and overflow:hidden, preventing layout interference.",
+    "animation_fill_mode_both": "board-enter uses fill-mode:both so the element starts invisible before the animation fires (prevents FOUC on slow paints)."
+  },
+  "test_plan": [
+    "CSS property check: verify computed animation property on .cell.x-piece::after contains 'mark-appear' after a move is played",
+    "CSS property check: verify computed animation property on .cell.o-piece::after contains 'mark-appear' after O's move",
+    "CSS property check: verify computed animation on .cell.winning contains 'winning-pulse' after a win",
+    "CSS property check: verify computed animation on .board contains 'board-enter' on page load",
+    "Computed style check: verify .score-card.active-player has transform: scale(1.04) when active",
+    "Computed style check: verify .turn-indicator.is-x ~ .board .cell:not(.taken):hover has cyan box-shadow",
+    "Computed style check: verify .turn-indicator.is-o ~ .board .cell:not(.taken):hover has magenta box-shadow",
+    "Computed style check: verify .btn:focus-visible has both outline and box-shadow set",
+    "prefers-reduced-motion: mock matchMedia to return reduce preference; verify animation:none on .board, .cell.winning, ::after pseudo-elements",
+    "prefers-reduced-motion: verify transition-duration is <= 0.01ms on .cell and .btn when motion is reduced",
+    "Regression: run npm test — all 112+ existing Jest tests must still pass",
+    "Regression: run npx playwright test — all existing E2E tests must still pass",
+    "No JS library check: verify game.js contains no import/require for animation libraries (requestAnimationFrame usage only acceptable if already present)",
+    "Cross-browser: run Playwright tests in Chromium, Firefox, and WebKit to confirm keyframes render identically"
+  ],
+  "rollback_plan": "All changes are confined to the embedded <style> block in index.html. No new files are created. No JS logic, package.json, or test infrastructure changes are made. Rollback options: (1) git checkout feature/css-animations-neon-effects -- index.html to restore prior state; (2) git revert HEAD if changes are already committed; (3) if partially through implementation, git diff index.html shows exactly what changed for surgical manual revert. No database, API, or dependency changes to unwind.",
+  "risk_assessment": [
+    {
+      "risk": "transform on .cell.winning breaking layout (overflow:hidden clips scale)",
+      "likelihood": "low",
+      "mitigation": "Keep scale factor small (1.03); test at all three viewport breakpoints; use margin-compensated scale if clipping is observed"
+    },
+    {
+      "risk": "Sibling combinator (.turn-indicator.is-x ~ .board) failing if DOM order changes",
+      "likelihood": "low",
+      "mitigation": "DOM order is static HTML; document the dependency in a CSS comment so future refactors are aware"
+    },
+    {
+      "risk": "display:inline-block on ::after disrupting cell text layout",
+      "likelihood": "low",
+      "mitigation": "Cell uses flexbox centering which handles inline-block children; no fixed-height constraint on ::after"
+    },
+    {
+      "risk": "Board entrance animation causing layout shift (CLS) on slow connections",
+      "likelihood": "very low",
+      "mitigation": "fill-mode:both keeps the element invisible until animation starts, preventing reflow; translateY(24px) is a compositor-only property"
+    }
+  ]
+}

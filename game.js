@@ -74,6 +74,25 @@ function checkWin(boardState, player) {
 }
 
 /**
+ * Return the winning player symbol ('X' or 'O') if there is a winner,
+ * otherwise return null.
+ *
+ * @param {Array<string|null>} boardState
+ * @returns {'X'|'O'|null}
+ */
+function checkWinner(boardState) {
+  for (const line of WIN_LINES) {
+    const [a, b, c] = line;
+    if (boardState[a] !== null &&
+        boardState[a] === boardState[b] &&
+        boardState[a] === boardState[c]) {
+      return boardState[a];
+    }
+  }
+  return null;
+}
+
+/**
  * Return true if every cell on boardState is filled (no nulls).
  *
  * @param {Array<string|null>} boardState
@@ -81,6 +100,16 @@ function checkWin(boardState, player) {
  */
 function checkDraw(boardState) {
   return boardState.every((cell) => cell !== null);
+}
+
+/**
+ * Return the opposite player symbol.
+ *
+ * @param {'X'|'O'} current
+ * @returns {'X'|'O'}
+ */
+function switchPlayer(current) {
+  return current === 'X' ? 'O' : 'X';
 }
 
 /* ---------------------------------------------------------------------------
@@ -285,10 +314,19 @@ document.addEventListener('DOMContentLoaded', init);
    --------------------------------------------------------------------------- */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    checkWin,
-    checkDraw,
+    // Public API — core constants and pure logic
     WIN_LINES,
-    // Expose internals for DOM tests via reset
+    checkWinner,     // (board) → 'X' | 'O' | null
+    checkDraw,       // (board) → boolean
+    switchPlayer,    // (current) → 'X' | 'O'
+    // Internal helpers (also exported for advanced testing)
+    checkWin,        // (boardState, player) → number[]|null  (winning line)
+    // DOM-bound game actions
+    init,
+    startNewGame,
+    resetScore,
+    handleMove,
+    // State inspection / injection for DOM test harness
     _getState: () => ({ board: [...board], currentPlayer, gameOver, scores: { ...scores } }),
     _setState: (state) => {
       if (state.board)         board          = state.board;
@@ -296,9 +334,5 @@ if (typeof module !== 'undefined' && module.exports) {
       if (typeof state.gameOver !== 'undefined') gameOver = state.gameOver;
       if (state.scores)        scores         = state.scores;
     },
-    init,
-    startNewGame,
-    resetScore,
-    handleMove,
   };
 }

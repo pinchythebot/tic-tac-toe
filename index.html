@@ -488,6 +488,43 @@
     }
 
     /* =========================================================
+       Mute Toggle Button
+       A compact icon button that sits alongside the other controls.
+       Uses the ghost-button base styles and adds neon-accent states
+       for the muted/unmuted conditions.
+       ========================================================= */
+    .btn-mute {
+      padding: 0.55rem 0.8rem;
+      font-size: 1.1rem;
+      min-width: 2.75rem;
+      line-height: 1;
+    }
+
+    /* Unmuted (default) — subtle muted-colour treatment */
+    .btn-mute[aria-pressed="false"] {
+      color: var(--color-muted);
+      border-color: var(--color-border);
+    }
+
+    .btn-mute[aria-pressed="false"]:hover {
+      color: var(--color-text);
+      border-color: var(--color-muted);
+      box-shadow: 0 0 8px rgba(85, 85, 119, 0.6);
+    }
+
+    /* Muted (aria-pressed="true") — magenta neon accent signals it's off */
+    .btn-mute[aria-pressed="true"] {
+      color: var(--color-o);
+      border-color: var(--color-o);
+      box-shadow: 0 0 8px var(--color-o-glow);
+    }
+
+    .btn-mute[aria-pressed="true"]:hover {
+      background-color: rgba(255, 0, 170, 0.08);
+      box-shadow: 0 0 14px var(--color-o-glow);
+    }
+
+    /* =========================================================
        Accessibility: Reduced Motion
        Disables non-essential keyframe animations and minimises
        transition durations for users who have requested reduced
@@ -565,6 +602,12 @@
       <div class="controls">
         <button class="btn btn-primary" id="newGameBtn" type="button">New Game</button>
         <button class="btn btn-ghost"   id="resetScoreBtn" type="button">Reset Score</button>
+        <button class="btn btn-ghost btn-mute"
+                id="muteBtn"
+                type="button"
+                aria-label="Mute sounds"
+                aria-pressed="false"
+                title="Toggle sound effects">🔊</button>
       </div>
 
       <!-- Scoreboard -->

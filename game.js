@@ -7,6 +7,8 @@
  *  - Score tracking across rounds
  *  - DOM updates (turn indicator, status message, aria-labels)
  *  - New Game and Reset Score controls
+ *  - Web Audio API sound effects (SoundEngine)
+ *  - Mute / unmute toggle
  *
  * Designed to be loaded by index.html after the DOM is fully parsed.
  * All exports are wrapped in a DOMContentLoaded listener so the module
@@ -30,6 +32,272 @@ const WIN_LINES = [
 ];
 
 /* ---------------------------------------------------------------------------
+   Sound Engine — Web Audio API (no external libraries)
+   --------------------------------------------------------------------------- *
+ *
+ * All four sounds are synthesized entirely with OscillatorNode + GainNode.
+ *
+ * AudioContext creation is deferred until enable() is called, which should
+ * only happen inside a user-gesture handler (click / keydown).  This
+ * satisfies browser autoplay policies that block AudioContext creation before
+ * any user interaction.
+ *
+ * Sounds:
+ *  playPlace()   – short percussive click when a mark is placed
+ *  playWin()     – ascending arpeggio fanfare on win
+ *  playDraw()    – descending minor-chord sequence on draw
+ *  playNewGame() – subtle frequency whoosh on New Game
+ */
+const SoundEngine = (() => {
+  /** Lazily-created AudioContext — null until the first user gesture. */
+  let _audioContext = null;
+
+  /** Whether a user gesture has been registered (enables audio creation). */
+  let _gestureOccurred = false;
+
+  /** Whether sounds are muted. */
+  let _muted = false;
+
+  /* ------------------------------------------------------------------
+     Private helpers
+     ------------------------------------------------------------------ */
+
+  /**
+   * Mark that a user gesture has occurred.
+   * Call this inside any user-event handler before playing audio so that
+   * the AudioContext is created in the correct gesture context.
+   */
+  function enable() {
+    _gestureOccurred = true;
+  }
+
+  /**
+   * Return a running AudioContext, or null if audio is unavailable
+   * (muted, no gesture yet, or environment without Web Audio API).
+   *
+   * @returns {AudioContext|null}
+   */
+  function _getContext() {
+    if (_muted) return null;
+    if (!_gestureOccurred) return null;
+    if (typeof window === 'undefined') return null;
+
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+
+    if (!_audioContext) {
+      try {
+        _audioContext = new AudioContextClass();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // Resume if the context was suspended (e.g. tab switch)
+    if (_audioContext.state === 'suspended') {
+      _audioContext.resume().catch(() => {});
+    }
+
+    return _audioContext;
+  }
+
+  /* ------------------------------------------------------------------
+     Sound synthesizers
+     ------------------------------------------------------------------ */
+
+  /**
+   * Short percussive click — played when a mark is placed on the board.
+   *
+   * Triangle oscillator with a rapid frequency drop (800 → 200 Hz) and a
+   * fast gain decay over ~80 ms gives a clean, tactile "tick".
+   */
+  function playPlace() {
+    const ctx = _getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + 0.08);
+
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  /**
+   * Ascending arpeggio fanfare — played on a win.
+   *
+   * Four sine-wave notes (C5 → E5 → G5 → C6) played in quick succession,
+   * each with a soft attack and fast decay.
+   */
+  function playWin() {
+    const ctx = _getContext();
+    if (!ctx) return;
+
+    // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    const noteDuration = 0.14;
+    const noteGap      = 0.16;
+    const now = ctx.currentTime;
+
+    notes.forEach((freq, i) => {
+      const t = now + i * noteGap;
+
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.0, t);
+      gain.gain.linearRampToValueAtTime(0.28, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + noteDuration);
+
+      osc.start(t);
+      osc.stop(t + noteDuration);
+    });
+  }
+
+  /**
+   * Descending minor-chord sequence — played on a draw.
+   *
+   * Three sawtooth notes (A4 → F4 → D4) played in descending order,
+   * giving a muted, "oh well" feeling.
+   */
+  function playDraw() {
+    const ctx = _getContext();
+    if (!ctx) return;
+
+    // A4, F4, D4 — descending minor-ish
+    const notes = [440, 349.23, 293.66];
+    const noteDuration = 0.20;
+    const noteGap      = 0.22;
+    const now = ctx.currentTime;
+
+    notes.forEach((freq, i) => {
+      const t = now + i * noteGap;
+
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.0, t);
+      gain.gain.linearRampToValueAtTime(0.15, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + noteDuration);
+
+      osc.start(t);
+      osc.stop(t + noteDuration);
+    });
+  }
+
+  /**
+   * Subtle frequency whoosh — played when a New Game begins.
+   *
+   * A single sine oscillator sweeps from 1 200 Hz down to 200 Hz over
+   * 300 ms while the gain decays, producing a light "swoosh" sound.
+   */
+  function playNewGame() {
+    const ctx = _getContext();
+    if (!ctx) return;
+
+    const now      = ctx.currentTime;
+    const duration = 0.30;
+
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(200, now + duration);
+
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  /* ------------------------------------------------------------------
+     Mute control
+     ------------------------------------------------------------------ */
+
+  /**
+   * Set the muted state.
+   * @param {boolean} muted
+   */
+  function setMuted(muted) {
+    _muted = Boolean(muted);
+  }
+
+  /**
+   * Return true if audio is currently muted.
+   * @returns {boolean}
+   */
+  function isMuted() {
+    return _muted;
+  }
+
+  /* ------------------------------------------------------------------
+     Testing helpers (prefixed with _ — not part of public API)
+     ------------------------------------------------------------------ */
+
+  /**
+   * Reset all internal state.  For unit-test use only.
+   */
+  function _reset() {
+    _audioContext     = null;
+    _gestureOccurred  = false;
+    _muted            = false;
+  }
+
+  /** Return whether a user gesture has been registered. */
+  function _isEnabled() {
+    return _gestureOccurred;
+  }
+
+  /** Return the current AudioContext instance (may be null). */
+  function _getAudioContext() {
+    return _audioContext;
+  }
+
+  /* Public API */
+  return {
+    enable,
+    playPlace,
+    playWin,
+    playDraw,
+    playNewGame,
+    setMuted,
+    isMuted,
+    // Testing helpers
+    _reset,
+    _isEnabled,
+    _getAudioContext,
+  };
+})();
+
+/* ---------------------------------------------------------------------------
    Game State (module-level — reset by startNewGame())
    --------------------------------------------------------------------------- */
 let board        = Array(9).fill(null); // null | 'X' | 'O'
@@ -51,6 +319,7 @@ let scoreCardX;
 let scoreCardO;
 let newGameBtn;
 let resetScoreBtn;
+let muteBtn;
 
 /* ---------------------------------------------------------------------------
    Core Game Logic (pure — no DOM side-effects)
@@ -200,6 +469,9 @@ function handleMove(index) {
   board[index] = currentPlayer;
   renderCell(cells[index], index);
 
+  // Sound: mark placed
+  SoundEngine.playPlace();
+
   // Check win
   const winLine = checkWin(board, currentPlayer);
   if (winLine) {
@@ -216,6 +488,9 @@ function handleMove(index) {
     // Show status
     statusMessage.textContent = `Player ${currentPlayer} wins!`;
 
+    // Sound: win fanfare
+    SoundEngine.playWin();
+
     // Keep the turn indicator showing the winner (no change)
     return;
   }
@@ -226,6 +501,10 @@ function handleMove(index) {
     scores.draw++;
     updateScoreDisplay();
     statusMessage.textContent = "It's a draw!";
+
+    // Sound: draw chord
+    SoundEngine.playDraw();
+
     return;
   }
 
@@ -249,6 +528,9 @@ function startNewGame() {
   renderBoard();
   updateTurnIndicator();
   updateScoreCardHighlight();
+
+  // Sound: whoosh
+  SoundEngine.playNewGame();
 }
 
 /** Reset scores and start a fresh game. */
@@ -259,16 +541,41 @@ function resetScore() {
 }
 
 /* ---------------------------------------------------------------------------
+   Mute Toggle
+   --------------------------------------------------------------------------- */
+
+/**
+ * Toggle the mute state and update the mute button's appearance and
+ * aria attributes to reflect the new state.
+ */
+function toggleMute() {
+  const nowMuted = !SoundEngine.isMuted();
+  SoundEngine.setMuted(nowMuted);
+
+  if (muteBtn) {
+    muteBtn.textContent = nowMuted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-pressed', String(nowMuted));
+    muteBtn.setAttribute('aria-label', nowMuted ? 'Unmute sounds' : 'Mute sounds');
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Event Wiring
    --------------------------------------------------------------------------- */
 
 /** Wire click and keyboard events to all 9 cells. */
 function bindCellEvents() {
   cells.forEach((cellEl, index) => {
-    cellEl.addEventListener('click', () => handleMove(index));
+    cellEl.addEventListener('click', () => {
+      // Register user gesture so AudioContext may be created
+      SoundEngine.enable();
+      handleMove(index);
+    });
     cellEl.addEventListener('keydown', (evt) => {
       if (evt.key === 'Enter' || evt.key === ' ') {
         evt.preventDefault();
+        // Register user gesture so AudioContext may be created
+        SoundEngine.enable();
         handleMove(index);
       }
     });
@@ -292,10 +599,26 @@ function init() {
   scoreCardO          = document.getElementById('scoreCardO');
   newGameBtn          = document.getElementById('newGameBtn');
   resetScoreBtn       = document.getElementById('resetScoreBtn');
+  muteBtn             = document.getElementById('muteBtn');
 
-  // Bind controls
-  newGameBtn.addEventListener('click', startNewGame);
-  resetScoreBtn.addEventListener('click', resetScore);
+  // Bind controls — each user gesture also enables the SoundEngine
+  newGameBtn.addEventListener('click', () => {
+    SoundEngine.enable();
+    startNewGame();
+  });
+
+  resetScoreBtn.addEventListener('click', () => {
+    SoundEngine.enable();
+    resetScore();
+  });
+
+  // Mute toggle
+  if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+      SoundEngine.enable();
+      toggleMute();
+    });
+  }
 
   // Bind cell interactions
   bindCellEvents();
@@ -326,6 +649,9 @@ if (typeof module !== 'undefined' && module.exports) {
     startNewGame,
     resetScore,
     handleMove,
+    toggleMute,
+    // Sound engine (exported for testing with mocked AudioContext)
+    SoundEngine,
     // State inspection / injection for DOM test harness
     _getState: () => ({ board: [...board], currentPlayer, gameOver, scores: { ...scores } }),
     _setState: (state) => {

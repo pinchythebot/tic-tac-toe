@@ -37,6 +37,12 @@ let currentPlayer = 'X';
 let gameOver     = false;
 let scores       = { X: 0, O: 0, draw: 0 };
 
+let gameMode    = 'two-player'; // 'single' | 'two-player' — overridden to 'single' in init() when mode-switcher is present
+let difficulty  = 'hard';       // 'easy' | 'medium' | 'hard'
+let aiThinking  = false;        // true while 400 ms AI delay is active
+let isAIMove    = false;        // internal flag: lets the AI bypass the aiThinking guard
+let aiTimeoutId = null;         // handle for pending setTimeout (for cancellation)
+
 /* ---------------------------------------------------------------------------
    DOM Helpers — looked up once after DOMContentLoaded
    --------------------------------------------------------------------------- */
@@ -71,6 +77,100 @@ function checkWin(boardState, player) {
     }
   }
   return null;
+}
+
+/**
+ * Minimax with alpha-beta pruning.
+ * AI = 'O' (maximizing), Human = 'X' (minimizing).
+ * Returns a numeric score for the given boardState.
+ *
+ * Scoring:
+ *  O win  → +10 − depth  (prefer faster wins)
+ *  X win  → depth − 10   (prefer slower losses)
+ *  Draw   → 0
+ *
+ * @param {Array<string|null>} boardState  — mutated in-place then restored (backtracking)
+ * @param {number}             depth       — recursive depth (starts at 0)
+ * @param {boolean}            isMaximizing — true when it's O's (AI's) virtual turn
+ * @param {number}             alpha        — best score the maximizer (O) can guarantee so far
+ * @param {number}             beta         — best score the minimizer (X) can guarantee so far
+ * @returns {number}
+ */
+function minimax(boardState, depth, isMaximizing, alpha, beta) {
+  const winner = checkWinner(boardState);
+  if (winner === 'O') return 10 - depth;   // AI wins — prefer faster wins
+  if (winner === 'X') return depth - 10;   // Human wins — prefer slower losses
+  if (checkDraw(boardState)) return 0;
+
+  if (isMaximizing) {
+    let maxScore = -Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (boardState[i] === null) {
+        boardState[i] = 'O';
+        const score = minimax(boardState, depth + 1, false, alpha, beta);
+        boardState[i] = null;  // backtrack
+        maxScore = Math.max(maxScore, score);
+        alpha    = Math.max(alpha, score);
+        if (beta <= alpha) break;  // β cut-off
+      }
+    }
+    return maxScore;
+  } else {
+    let minScore = Infinity;
+    for (let i = 0; i < 9; i++) {
+      if (boardState[i] === null) {
+        boardState[i] = 'X';
+        const score = minimax(boardState, depth + 1, true, alpha, beta);
+        boardState[i] = null;  // backtrack
+        minScore = Math.min(minScore, score);
+        beta     = Math.min(beta, score);
+        if (beta <= alpha) break;  // α cut-off
+      }
+    }
+    return minScore;
+  }
+}
+
+/**
+ * Return the best board index for O to play, given the current difficulty.
+ *
+ * Difficulty tiers:
+ *  'hard'   — always optimal (full minimax). AI never loses.
+ *  'medium' — 40 % chance of a random move, otherwise minimax.
+ *  'easy'   — 80 % chance of a random move, otherwise minimax.
+ *
+ * The passed boardState is NEVER mutated.
+ *
+ * @param {Array<string|null>} boardState  — read-only; spread copies used for minimax
+ * @param {'easy'|'medium'|'hard'} diff
+ * @returns {number}  index 0–8, or -1 if no empty cell exists
+ */
+function getBestMove(boardState, diff) {
+  const emptyIndices = [];
+  for (let i = 0; i < 9; i++) {
+    if (boardState[i] === null) emptyIndices.push(i);
+  }
+  if (emptyIndices.length === 0) return -1;
+
+  const randomMove = () =>
+    emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+
+  if (diff === 'easy'   && Math.random() < 0.80) return randomMove();
+  if (diff === 'medium' && Math.random() < 0.40) return randomMove();
+
+  // Full minimax for 'hard' (and non-random fallthrough for other tiers)
+  let bestScore = -Infinity;
+  let bestMove  = emptyIndices[0]; // safe default
+  for (const i of emptyIndices) {
+    const copy = [...boardState];
+    copy[i] = 'O';
+    const score = minimax(copy, 0, false, -Infinity, Infinity);
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove  = i;
+    }
+  }
+  return bestMove;
 }
 
 /**
@@ -183,6 +283,41 @@ function disableEmptyCells() {
   });
 }
 
+/** Add board--locked class to prevent pointer interaction during AI thinking. */
+function lockBoard() {
+  const boardEl = document.getElementById('board');
+  if (boardEl) boardEl.classList.add('board--locked');
+}
+
+/** Remove board--locked class once AI has played. */
+function unlockBoard() {
+  const boardEl = document.getElementById('board');
+  if (boardEl) boardEl.classList.remove('board--locked');
+}
+
+/**
+ * Schedule an AI move after a 400 ms delay.
+ * Locks the board during the thinking period to prevent human double-moves.
+ * The callback is guarded against stale invocation (checks !gameOver).
+ */
+function scheduleAIMove() {
+  aiThinking = true;
+  lockBoard();
+  aiTimeoutId = setTimeout(() => {
+    aiTimeoutId = null;
+    if (!gameOver) {
+      const move = getBestMove([...board], difficulty);
+      if (move !== -1) {
+        isAIMove = true;
+        handleMove(move);
+        isAIMove = false;
+      }
+    }
+    aiThinking = false;
+    unlockBoard();
+  }, 400);
+}
+
 /* ---------------------------------------------------------------------------
    Move Handler
    --------------------------------------------------------------------------- */
@@ -195,6 +330,7 @@ function disableEmptyCells() {
  */
 function handleMove(index) {
   if (gameOver || board[index] !== null) return;
+  if (aiThinking && !isAIMove) return;  // Block human input during AI thinking delay
 
   // Place the mark
   board[index] = currentPlayer;
@@ -233,6 +369,11 @@ function handleMove(index) {
   currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
   updateTurnIndicator();
   updateScoreCardHighlight();
+
+  // In single-player mode, schedule AI response when it is O's turn
+  if (gameMode === 'single' && !gameOver && currentPlayer === 'O') {
+    scheduleAIMove();
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -241,6 +382,15 @@ function handleMove(index) {
 
 /** Reset the board for a new round (scores preserved). */
 function startNewGame() {
+  // Cancel any in-flight AI move to prevent stale callbacks on a fresh board
+  if (aiTimeoutId !== null) {
+    clearTimeout(aiTimeoutId);
+    aiTimeoutId = null;
+  }
+  aiThinking = false;
+  isAIMove   = false;
+  unlockBoard();
+
   board         = Array(9).fill(null);
   currentPlayer = 'X';
   gameOver      = false;
@@ -255,6 +405,37 @@ function startNewGame() {
 function resetScore() {
   scores = { X: 0, O: 0, draw: 0 };
   updateScoreDisplay();
+  startNewGame();
+}
+
+/**
+ * Switch between 'single' and 'two-player' game modes.
+ * Cancels any pending AI move, updates the pill button UI,
+ * and resets the board so the new mode takes effect immediately.
+ *
+ * @param {'single'|'two-player'} mode
+ */
+function setGameMode(mode) {
+  gameMode = mode;
+
+  // Update pill button visual state
+  const btn1p = document.getElementById('btn1p');
+  const btn2p = document.getElementById('btn2p');
+  if (btn1p && btn2p) {
+    btn1p.classList.toggle('mode-btn--active', mode === 'single');
+    btn2p.classList.toggle('mode-btn--active', mode === 'two-player');
+    btn1p.setAttribute('aria-pressed', mode === 'single'     ? 'true' : 'false');
+    btn2p.setAttribute('aria-pressed', mode === 'two-player' ? 'true' : 'false');
+  }
+
+  // Cancel any pending AI move (startNewGame will also do this, but be explicit here)
+  if (aiTimeoutId !== null) {
+    clearTimeout(aiTimeoutId);
+    aiTimeoutId = null;
+    aiThinking  = false;
+    unlockBoard();
+  }
+
   startNewGame();
 }
 
@@ -297,6 +478,16 @@ function init() {
   newGameBtn.addEventListener('click', startNewGame);
   resetScoreBtn.addEventListener('click', resetScore);
 
+  // Bind mode-switcher buttons and set initial mode to 'single' when present
+  const btn1p = document.getElementById('btn1p');
+  const btn2p = document.getElementById('btn2p');
+  if (btn1p) {
+    btn1p.addEventListener('click', () => setGameMode('single'));
+    // Mode-switcher is present in the DOM → default to single-player
+    gameMode = 'single';
+  }
+  if (btn2p) btn2p.addEventListener('click', () => setGameMode('two-player'));
+
   // Bind cell interactions
   bindCellEvents();
 
@@ -321,18 +512,42 @@ if (typeof module !== 'undefined' && module.exports) {
     switchPlayer,    // (current) → 'X' | 'O'
     // Internal helpers (also exported for advanced testing)
     checkWin,        // (boardState, player) → number[]|null  (winning line)
+    // AI functions (pure — no DOM, no module state)
+    minimax,         // (boardState, depth, isMaximizing, alpha, beta) → number
+    getBestMove,     // (boardState, diff) → number (0–8) | -1
+    // Board locking helpers
+    lockBoard,       // () → void
+    unlockBoard,     // () → void
+    // AI scheduling
+    scheduleAIMove,  // () → void
+    // Mode management
+    setGameMode,     // ('single'|'two-player') → void
     // DOM-bound game actions
     init,
     startNewGame,
     resetScore,
     handleMove,
     // State inspection / injection for DOM test harness
-    _getState: () => ({ board: [...board], currentPlayer, gameOver, scores: { ...scores } }),
+    _getState: () => ({
+      board: [...board],
+      currentPlayer,
+      gameOver,
+      scores: { ...scores },
+      gameMode,
+      difficulty,
+      aiThinking,
+      isAIMove,
+      aiTimeoutId,
+    }),
     _setState: (state) => {
       if (state.board)         board          = state.board;
       if (state.currentPlayer) currentPlayer  = state.currentPlayer;
-      if (typeof state.gameOver !== 'undefined') gameOver = state.gameOver;
-      if (state.scores)        scores         = state.scores;
+      if (typeof state.gameOver    !== 'undefined') gameOver    = state.gameOver;
+      if (state.scores)            scores      = state.scores;
+      if (state.gameMode)          gameMode    = state.gameMode;
+      if (state.difficulty)        difficulty  = state.difficulty;
+      if (typeof state.aiThinking  !== 'undefined') aiThinking  = state.aiThinking;
+      if (typeof state.isAIMove    !== 'undefined') isAIMove    = state.isAIMove;
     },
   };
 }

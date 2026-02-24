@@ -471,6 +471,54 @@
     }
 
     /* =========================================================
+       Mode Switcher (1 Player / 2 Players pill)
+       ========================================================= */
+    .mode-switcher {
+      display: flex;
+      background: var(--bg-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      width: fit-content;
+    }
+
+    .mode-btn {
+      flex: 1;
+      white-space: nowrap;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 18px;
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--color-muted);
+      background: transparent;
+      transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .mode-btn:focus-visible {
+      outline: 2px solid var(--color-x);
+      outline-offset: 2px;
+    }
+
+    .mode-btn--active {
+      background-color: var(--color-x);
+      color: var(--bg-body);
+      box-shadow: 0 0 8px var(--color-x-glow);
+    }
+
+    /* =========================================================
+       Board Locked State (during AI thinking delay)
+       ========================================================= */
+    .board--locked .cell {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* =========================================================
        Responsive Tweaks
        ========================================================= */
     @media (max-width: 360px) {
@@ -509,6 +557,7 @@
       .turn-indicator,
       .score-card,
       .btn,
+      .mode-btn,
       .status-message {
         transition-duration: 0.01ms !important;
       }
@@ -536,6 +585,12 @@
            aria-live="polite"
            aria-atomic="true">
         Player <span class="player-symbol" id="currentPlayerSymbol">X</span>'s turn
+      </div>
+
+      <!-- Mode Switcher: 1 Player / 2 Players pill -->
+      <div class="mode-switcher" id="modeSwitcher" role="group" aria-label="Game mode selection">
+        <button class="mode-btn mode-btn--active" id="btn1p" type="button" aria-pressed="true">1 Player</button>
+        <button class="mode-btn" id="btn2p" type="button" aria-pressed="false">2 Players</button>
       </div>
 
       <!-- 3×3 Board -->

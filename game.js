@@ -135,9 +135,9 @@ function minimax(boardState, depth, isMaximizing, alpha, beta) {
  * Return the best board index for O to play, given the current difficulty.
  *
  * Difficulty tiers:
- *  'hard'   — always optimal (full minimax). AI never loses.
- *  'medium' — 40 % chance of a random move, otherwise minimax.
- *  'easy'   — 80 % chance of a random move, otherwise minimax.
+ *  'hard'   — always optimal (full minimax with alpha-beta pruning). AI never loses.
+ *  'medium' — 60 % chance of a random move, 40 % minimax. Beatable by a skilled player.
+ *  'easy'   — always picks a random empty cell. Easily beatable.
  *
  * The passed boardState is NEVER mutated.
  *
@@ -155,8 +155,8 @@ function getBestMove(boardState, diff) {
   const randomMove = () =>
     emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
 
-  if (diff === 'easy'   && Math.random() < 0.80) return randomMove();
-  if (diff === 'medium' && Math.random() < 0.40) return randomMove();
+  if (diff === 'easy') return randomMove();                              // Always random
+  if (diff === 'medium' && Math.random() < 0.60) return randomMove();   // 60 % random, 40 % minimax
 
   // Full minimax for 'hard' (and non-random fallthrough for other tiers)
   let bestScore = -Infinity;
@@ -436,7 +436,43 @@ function setGameMode(mode) {
     unlockBoard();
   }
 
+  // Show or hide the difficulty selector based on active mode
+  const difficultySwitcher = document.getElementById('difficultySwitcher');
+  if (difficultySwitcher) {
+    if (mode === 'single') {
+      difficultySwitcher.removeAttribute('hidden');
+    } else {
+      difficultySwitcher.setAttribute('hidden', '');
+    }
+  }
+
   startNewGame();
+}
+
+/**
+ * Set the AI difficulty level and update the difficulty selector UI.
+ *
+ * @param {'easy'|'medium'|'hard'} diff
+ */
+function setDifficulty(diff) {
+  difficulty = diff;
+
+  const btnEasy   = document.getElementById('diffEasy');
+  const btnMedium = document.getElementById('diffMedium');
+  const btnHard   = document.getElementById('diffHard');
+
+  if (btnEasy && btnMedium && btnHard) {
+    // Reset all buttons
+    [btnEasy, btnMedium, btnHard].forEach((btn) => {
+      btn.classList.remove('difficulty-btn--active');
+      btn.setAttribute('aria-pressed', 'false');
+    });
+
+    // Activate the selected difficulty button
+    const activeBtn = diff === 'easy' ? btnEasy : diff === 'medium' ? btnMedium : btnHard;
+    activeBtn.classList.add('difficulty-btn--active');
+    activeBtn.setAttribute('aria-pressed', 'true');
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -488,6 +524,24 @@ function init() {
   }
   if (btn2p) btn2p.addEventListener('click', () => setGameMode('two-player'));
 
+  // Bind difficulty selector buttons
+  const btnDiffEasy   = document.getElementById('diffEasy');
+  const btnDiffMedium = document.getElementById('diffMedium');
+  const btnDiffHard   = document.getElementById('diffHard');
+  if (btnDiffEasy)   btnDiffEasy.addEventListener('click',   () => setDifficulty('easy'));
+  if (btnDiffMedium) btnDiffMedium.addEventListener('click', () => setDifficulty('medium'));
+  if (btnDiffHard)   btnDiffHard.addEventListener('click',   () => setDifficulty('hard'));
+
+  // Sync difficulty selector: show when single-player, hide when two-player
+  const difficultySwitcher = document.getElementById('difficultySwitcher');
+  if (difficultySwitcher) {
+    if (gameMode !== 'single') {
+      difficultySwitcher.setAttribute('hidden', '');
+    }
+    // Initialise the active button to match the current difficulty state
+    setDifficulty(difficulty);
+  }
+
   // Bind cell interactions
   bindCellEvents();
 
@@ -522,6 +576,7 @@ if (typeof module !== 'undefined' && module.exports) {
     scheduleAIMove,  // () → void
     // Mode management
     setGameMode,     // ('single'|'two-player') → void
+    setDifficulty,   // ('easy'|'medium'|'hard') → void
     // DOM-bound game actions
     init,
     startNewGame,

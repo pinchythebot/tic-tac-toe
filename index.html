@@ -511,6 +511,49 @@
     }
 
     /* =========================================================
+       Difficulty Selector (single-player mode only)
+       Segmented control: Easy | Medium | Hard
+       Uses --color-o (magenta) to visually distinguish it from
+       the mode switcher which uses --color-x (cyan).
+       ========================================================= */
+    .difficulty-selector {
+      display: flex;
+      background: var(--bg-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      width: fit-content;
+    }
+
+    .difficulty-btn {
+      flex: 1;
+      white-space: nowrap;
+      border: none;
+      border-radius: 999px;
+      padding: 5px 14px;
+      cursor: pointer;
+      font-family: var(--font-main);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--color-muted);
+      background: transparent;
+      transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .difficulty-btn:focus-visible {
+      outline: 2px solid var(--color-o);
+      outline-offset: 2px;
+    }
+
+    .difficulty-btn--active {
+      background-color: var(--color-o);
+      color: var(--bg-body);
+      box-shadow: 0 0 8px var(--color-o-glow);
+    }
+
+    /* =========================================================
        Board Locked State (during AI thinking delay)
        ========================================================= */
     .board--locked .cell {
@@ -558,6 +601,7 @@
       .score-card,
       .btn,
       .mode-btn,
+      .difficulty-btn,
       .status-message {
         transition-duration: 0.01ms !important;
       }
@@ -591,6 +635,13 @@
       <div class="mode-switcher" id="modeSwitcher" role="group" aria-label="Game mode selection">
         <button class="mode-btn mode-btn--active" id="btn1p" type="button" aria-pressed="true">1 Player</button>
         <button class="mode-btn" id="btn2p" type="button" aria-pressed="false">2 Players</button>
+      </div>
+
+      <!-- Difficulty Selector: Easy / Medium / Hard (single-player only) -->
+      <div class="difficulty-selector" id="difficultySwitcher" role="group" aria-label="AI difficulty selection">
+        <button class="difficulty-btn" id="diffEasy"   type="button" aria-pressed="false">Easy</button>
+        <button class="difficulty-btn" id="diffMedium" type="button" aria-pressed="false">Medium</button>
+        <button class="difficulty-btn difficulty-btn--active" id="diffHard" type="button" aria-pressed="true">Hard</button>
       </div>
 
       <!-- 3×3 Board -->

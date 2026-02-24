@@ -1,243 +1,221 @@
 {
-  "feature": "Add smooth CSS animations and neon visual effects",
-  "branch_name": "feature/css-animations-neon-effects",
+  "feature": "Add AI Difficulty Selector (Easy / Medium / Hard)",
+  "branch_name": "feature/ai-difficulty-selector",
   "analysis": {
-    "existing_animations": [
-      "winning-pulse keyframe (box-shadow pulse on .cell.winning, infinite alternate)",
-      "transition on .turn-indicator (border-color 0.2s ease, box-shadow 0.2s ease)",
-      "transition on .cell (background-color, border-color, box-shadow, transform — 0.15s)",
-      "transition on .btn (background-color, border-color, box-shadow, transform — 0.15s)",
-      "transition on .score-card (border-color, box-shadow — 0.2s)",
-      "transition on .status-message (opacity 0.25s ease)",
-      ".cell:not(.taken):hover — transform: scale(1.04), bg-color, border-color"
+    "current_state": {
+      "game_mode": "2-player only — no AI or single-player support exists in game.js",
+      "ai_logic": "None — game.js has zero minimax, random-move, or difficulty logic",
+      "ui_components": "turn-indicator, 3x3 board grid, status-message, controls (New Game / Reset Score), scoreboard",
+      "css_design_tokens": "--color-x (#00f0ff cyan), --color-o (#ff00aa magenta), --color-win (#ffe600 gold), --color-muted (#555577), --color-border (#2a2a4a), --bg-surface (#141414), --bg-cell (#1a1a2e)",
+      "module_exports": "WIN_LINES, checkWinner, checkDraw, switchPlayer, checkWin, init, startNewGame, resetScore, handleMove, _getState, _setState",
+      "test_infrastructure": "Jest (jsdom) + Playwright; 12 test files covering logic, DOM, E2E, accessibility, CSS animations"
+    },
+    "affected_files": ["index.html", "game.js"],
+    "new_test_files": ["__tests__/ai.logic.test.js", "__tests__/ai.dom.test.js"],
+    "key_constraints": [
+      "Human always plays X; AI always plays O in single-player mode",
+      "Easy: 100% random empty cell selection (fully beatable)",
+      "Medium: 40% minimax / 60% random (beatable with consistent play)",
+      "Hard: full minimax + alpha-beta pruning — provably unbeatable (optimal play = draw)",
+      "Difficulty selector must be HIDDEN when 2-player mode is active; VISIBLE only in single-player mode",
+      "All neon styling must use existing CSS custom properties — no new color values except Easy green (#00ff88)",
+      "AI move must be scheduled asynchronously (300ms setTimeout) so human move renders before AI responds",
+      "Board must be interactively locked (pointer-events + JS guard) during AI thinking window",
+      "Pending AI timeout must be cancelled in startNewGame() and setGameMode() to prevent stale callbacks",
+      "minimax must NOT permanently mutate the passed boardState (must backtrack after every branch)",
+      "All existing 2-player tests must continue to pass without modification",
+      "No third-party libraries — pure vanilla JS"
     ],
-    "gaps_requiring_new_work": [
-      "No mark-appear animation when X/O is placed (cells appear instantaneously)",
-      "No player-aware neon glow on empty cell hover (only scale transform + bg color)",
-      "No board entrance animation on page load",
-      "No prefers-reduced-motion media query anywhere in CSS",
-      "Button focus-visible uses only box-shadow — no outline neon border",
-      "Scoreboard active-player transition lacks transform for subtle scale emphasis"
-    ],
-    "already_satisfied": [
-      "winning-pulse keyframe satisfies the pulsing neon glow on .winning cells",
-      "turn-indicator transitions (border-color/box-shadow) handle smooth active-player shift",
-      "score-card transitions (border-color/box-shadow) enable smooth highlight slide",
-      "btn-primary:hover has neon box-shadow glow — minor enhancement only needed",
-      "Design tokens --color-x-glow, --color-o-glow, --color-win-glow already defined"
-    ],
-    "css_sibling_strategy": "The HTML order <div.turn-indicator.is-x> precedes <div.board> inside .game-container, enabling the CSS general sibling combinator (.turn-indicator.is-x ~ .board .cell:not(.taken):hover) to target empty cell hover color based on whose turn it is — pure CSS, zero JS changes."
+    "dom_order_dependency": "The CSS general sibling combinator (.turn-indicator.is-x ~ .board) remains valid when new elements are inserted between turn-indicator and board because ~ matches ANY subsequent sibling, not only the immediately adjacent one.",
+    "minimax_design": {
+      "ai_player": "O (maximizer)",
+      "human_player": "X (minimizer)",
+      "scoring": "O wins: +10 - depth (prefer faster wins); X wins: depth - 10 (negative, prefer slower losses); draw: 0",
+      "pruning": "Standard alpha-beta: alpha starts -Infinity, beta starts +Infinity; prune when beta <= alpha",
+      "difficulty_tiers": {
+        "easy": "100% random empty cell — Math.random() selects uniformly from getEmptyCells()",
+        "medium": "Math.random() < 0.4 uses getBestMove() (optimal); else uses randomMove() — 40% optimal / 60% random",
+        "hard": "Always getBestMove() via full minimax + alpha-beta — never loses"
+      }
+    }
   },
   "implementation_plan": [
     {
       "step": 1,
-      "description": "Add @keyframes mark-appear for cell mark placement animation. Define a spring-style entry (scale 0→1, rotate -15deg→0deg, opacity 0→1). Add display:inline-block to .cell.x-piece::after and .cell.o-piece::after so transforms apply to the pseudo-element. Wire animation: mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards to both pseudo-elements.",
-      "files": ["index.html"]
+      "description": "Verify current branch is feature/ai-difficulty-selector (git branch --show-current). Confirm game.js and index.html are in baseline 2-player state.",
+      "files": []
     },
     {
       "step": 2,
-      "description": "Enhance the existing winning-pulse @keyframes to also animate transform: scale() between 1.0 and 1.03 alongside the existing box-shadow oscillation, making the winning cells feel more alive without changing their layout flow.",
-      "files": ["index.html"]
+      "description": "Add new module-level state variables to game.js after existing state block: gameMode ('2player'), aiDifficulty ('medium'), aiThinking (false), isAIMove (false), aiTimeoutId (null).",
+      "files": ["game.js"]
     },
     {
       "step": 3,
-      "description": "Add player-aware hover glow on empty cells using CSS sibling combinator. Two new rule sets: .turn-indicator.is-x ~ .board .cell:not(.taken):hover adds cyan box-shadow; .turn-indicator.is-o ~ .board .cell:not(.taken):hover adds magenta box-shadow. No JS changes required.",
-      "files": ["index.html"]
+      "description": "Add new DOM reference variables in the DOM Helpers section of game.js: modeSelector, difficultySelector, labelX, labelO.",
+      "files": ["game.js"]
     },
     {
       "step": 4,
-      "description": "Enhance scoreboard active-player indicator: add transform to the .score-card transition property list (transform 0.2s ease) and add transform: scale(1.04) to .score-card.active-player so the active card gently grows. This creates a smooth slide-like emphasis effect between X and O cards.",
-      "files": ["index.html"]
+      "description": "Implement five pure AI helper functions in a new AI Logic section in game.js: (a) getEmptyCells(boardState) returns array of null indices; (b) randomMove(boardState) returns a random index from getEmptyCells(); (c) minimax(boardState, isMaximizing, depth, alpha, beta) with alpha-beta pruning and backtracking — O wins: +10-depth, X wins: depth-10, draw: 0; (d) getBestMove(boardState) iterates empty cells calling minimax on spread copies, returns highest-scoring index; (e) getAIMove(boardState, difficulty) dispatches to easy/medium/hard logic.",
+      "files": ["game.js"]
     },
     {
       "step": 5,
-      "description": "Improve button focus/hover neon states. For .btn:focus-visible, supplement the existing box-shadow with outline: 2px solid and the matching glow color so keyboard focus is unambiguously neon. Ensure .btn-ghost:hover gains a subtle neon border glow matching the color-muted palette. Keep existing .btn-primary:hover glow but strengthen slightly.",
-      "files": ["index.html"]
+      "description": "Add lockBoard() (adds 'board--locked' class to #board) and unlockBoard() (removes it) DOM helpers to game.js. These work with CSS rule: .board--locked .cell { pointer-events: none; cursor: default; }",
+      "files": ["game.js"]
     },
     {
       "step": 6,
-      "description": "Add @keyframes board-enter (translateY(24px) scale(0.97) opacity:0 → translateY(0) scale(1) opacity:1) and apply animation: board-enter 0.5s ease-out both to the .board selector. This gives a subtle slide-up + scale entrance on first paint.",
-      "files": ["index.html"]
+      "description": "Add scheduleAIMove() — sets aiThinking=true, calls lockBoard(), stores setTimeout(handleAIMove, 300) in aiTimeoutId. Add handleAIMove() — clears aiTimeoutId, exits if gameOver, calls getAIMove([...board], aiDifficulty), if move !== -1 sets isAIMove=true, calls handleMove(move), resets isAIMove; unconditionally sets aiThinking=false and calls unlockBoard().",
+      "files": ["game.js"]
     },
     {
       "step": 7,
-      "description": "Add @media (prefers-reduced-motion: reduce) block as the final section of the stylesheet. Inside it: set animation: none !important on .board, .cell.winning, .cell.x-piece::after, .cell.o-piece::after; set transition-duration: 0.01ms !important on .cell, .turn-indicator, .score-card, .btn, .status-message to preserve logical state changes without motion.",
-      "files": ["index.html"]
+      "description": "Modify handleMove() in game.js: (a) add guard 'if (aiThinking && !isAIMove) return' immediately after existing first guard; (b) at end of function after updateScoreCardHighlight(), add AI trigger: 'if (gameMode === \"1player\" && !gameOver && currentPlayer === \"O\") { scheduleAIMove(); }'",
+      "files": ["game.js"]
     },
     {
       "step": 8,
-      "description": "Run the full existing test suite (npm test) and Playwright E2E tests (npx playwright test) to confirm all CSS changes are additive and no JS behavior is broken. Add targeted Playwright tests for animation CSS properties.",
-      "files": ["__tests__/game.e2e.spec.js"]
+      "description": "Modify startNewGame() in game.js — prepend: cancel pending AI timeout (clearTimeout(aiTimeoutId), set to null), reset aiThinking=false, isAIMove=false, call unlockBoard().",
+      "files": ["game.js"]
+    },
+    {
+      "step": 9,
+      "description": "Add setGameMode(mode) to game.js: updates gameMode, toggles .active class and aria-pressed on mode buttons, shows/hides difficultySelector via .hidden class, updates score labels (Player X/Player O <-> You/CPU), cancels any pending AI timeout, calls startNewGame().",
+      "files": ["game.js"]
+    },
+    {
+      "step": 10,
+      "description": "Add setDifficulty(difficulty) to game.js: updates aiDifficulty, removes .active from all .diff-btn elements, adds .active to the matching button.",
+      "files": ["game.js"]
+    },
+    {
+      "step": 11,
+      "description": "Modify init() in game.js: cache modeSelector, difficultySelector, labelX, labelO DOM references; bind click listeners to all .mode-btn elements (call setGameMode(btn.dataset.mode)); bind click listeners to all .diff-btn elements (call setDifficulty(btn.dataset.difficulty)).",
+      "files": ["game.js"]
+    },
+    {
+      "step": 12,
+      "description": "Update module.exports in game.js: add getEmptyCells, randomMove, minimax, getBestMove, getAIMove, lockBoard, unlockBoard, scheduleAIMove, setGameMode, setDifficulty, _getAIState (() => ({ gameMode, aiDifficulty, aiThinking, isAIMove })). Update _setState to also accept gameMode, aiDifficulty, aiThinking, isAIMove fields.",
+      "files": ["game.js"]
+    },
+    {
+      "step": 13,
+      "description": "Add CSS in index.html <style> block before responsive tweaks section: .mode-selector and .difficulty-selector (pill container — flex row, bg-surface, color-border, border-radius 999px, padding 4px); .mode-btn and .diff-btn (transparent background, color-muted, rounded, transitions); .mode-btn.active (color-x, outline 1px solid color-x, neon glow); .diff-btn.active[data-difficulty='easy'] (#00ff88 green neon); .diff-btn.active[data-difficulty='medium'] (color-o magenta neon); .diff-btn.active[data-difficulty='hard'] (color-x cyan neon); .difficulty-selector.hidden { display: none }; add mode-btn and diff-btn to prefers-reduced-motion transition block.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 14,
+      "description": "Add HTML to index.html between #turnIndicator and #board: mode-selector div (role='group', aria-label='Game mode') with two mode-btn buttons (2player active by default); difficulty-selector div (role='group', aria-label='AI difficulty', class includes 'hidden') with three diff-btn buttons (medium active by default). All buttons have type='button' and aria-pressed attributes.",
+      "files": ["index.html"]
+    },
+    {
+      "step": 15,
+      "description": "Update GAME_HTML fixture in __tests__/game.dom.test.js to include new mode-selector and difficulty-selector HTML elements so init() can cache those DOM references without null errors. No changes to existing test cases.",
+      "files": ["__tests__/game.dom.test.js"]
+    },
+    {
+      "step": 16,
+      "description": "Write __tests__/ai.logic.test.js: pure unit tests for getEmptyCells, randomMove, minimax, getBestMove, getAIMove using Jest with node environment (no DOM). See test_plan for full case list.",
+      "files": ["__tests__/ai.logic.test.js"]
+    },
+    {
+      "step": 17,
+      "description": "Write __tests__/ai.dom.test.js: DOM integration tests for mode selector UI, difficulty selector visibility, AI auto-move behavior (jest.useFakeTimers), board locking, startNewGame cancellation, score label switching, and 2-player regression guard. See test_plan for full case list.",
+      "files": ["__tests__/ai.dom.test.js"]
     }
   ],
   "file_changes": [
     {
-      "path": "index.html",
-      "section": "Keyframes — new additions",
-      "changes": [
-        {
-          "name": "@keyframes mark-appear",
-          "css": "@keyframes mark-appear { from { display: inline-block; transform: scale(0) rotate(-15deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }",
-          "rationale": "Spring-curve entry via cubic-bezier(0.34, 1.56, 0.64, 1) gives an organic 'pop' without JS"
-        },
-        {
-          "name": "@keyframes board-enter",
-          "css": "@keyframes board-enter { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }",
-          "rationale": "Subtle lift-in on first paint, plays once with fill-mode: both"
-        }
-      ]
+      "path": "game.js",
+      "changes": "Add 5 new module-level state vars (gameMode, aiDifficulty, aiThinking, isAIMove, aiTimeoutId). Add 4 DOM ref vars (modeSelector, difficultySelector, labelX, labelO). Add AI Logic section with 5 pure functions (getEmptyCells, randomMove, minimax with alpha-beta and backtracking, getBestMove, getAIMove). Add lockBoard/unlockBoard DOM helpers. Add scheduleAIMove/handleAIMove async AI trigger. Modify handleMove() with aiThinking guard and AI trigger at end. Modify startNewGame() with timeout cancellation prefix. Add setGameMode() and setDifficulty() functions. Modify init() to cache new DOM refs and bind new events. Extend module.exports with all new symbols and update _getState/_setState."
     },
     {
       "path": "index.html",
-      "section": "Existing keyframes — modifications",
-      "changes": [
-        {
-          "name": "@keyframes winning-pulse (enhancement)",
-          "from": "@keyframes winning-pulse { from { box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow); } to   { box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow); } }",
-          "to": "@keyframes winning-pulse { from { box-shadow: inset 0 0 24px rgba(255,230,0,0.18), 0 0 8px var(--color-win-glow); transform: scale(1.0); } to   { box-shadow: inset 0 0 40px rgba(255,230,0,0.30), 0 0 20px var(--color-win-glow); transform: scale(1.03); } }",
-          "rationale": "Adds micro-scale pulse to complement box-shadow oscillation"
-        }
-      ]
+      "changes": "Add CSS for .mode-selector, .difficulty-selector (pill containers), .mode-btn, .diff-btn (base styles), active neon states per difficulty, .difficulty-selector.hidden, prefers-reduced-motion entries. Add HTML: mode-selector div with 2player/1player buttons (2player active by default), difficulty-selector div with easy/medium/hard buttons (medium active by default, hidden class on container). Both placed between #turnIndicator and #board."
     },
     {
-      "path": "index.html",
-      "section": ".cell.x-piece::after and .cell.o-piece::after",
-      "changes": [
-        {
-          "property": "display",
-          "value": "inline-block",
-          "rationale": "Required for CSS transform to apply to a pseudo-element"
-        },
-        {
-          "property": "animation",
-          "value": "mark-appear 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-          "rationale": "Triggers once per mark placement; forwards keeps the end state"
-        }
-      ]
-    },
-    {
-      "path": "index.html",
-      "section": ".cell:not(.taken):hover — player-aware glow additions",
-      "changes": [
-        {
-          "selector": ".turn-indicator.is-x ~ .board .cell:not(.taken):hover",
-          "css": "box-shadow: 0 0 14px var(--color-x-glow), 0 0 28px var(--color-x-glow);",
-          "rationale": "Cyan glow when it is X's turn — pure CSS sibling combinator, no JS"
-        },
-        {
-          "selector": ".turn-indicator.is-o ~ .board .cell:not(.taken):hover",
-          "css": "box-shadow: 0 0 14px var(--color-o-glow), 0 0 28px var(--color-o-glow);",
-          "rationale": "Magenta glow when it is O's turn"
-        }
-      ]
-    },
-    {
-      "path": "index.html",
-      "section": ".score-card — active-player enhancement",
-      "changes": [
-        {
-          "selector": ".score-card (transition property list)",
-          "from": "transition: border-color 0.2s ease, box-shadow 0.2s ease;",
-          "to": "transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;",
-          "rationale": "Enables animated scale on active-player toggle"
-        },
-        {
-          "selector": ".score-card.active-player",
-          "css_add": "transform: scale(1.04);",
-          "rationale": "Active card gently enlarges, creating perceivable 'slide-highlight' without a literal moving element"
-        }
-      ]
-    },
-    {
-      "path": "index.html",
-      "section": ".btn focus/hover neon border states",
-      "changes": [
-        {
-          "selector": ".btn:focus-visible",
-          "from": "box-shadow: 0 0 0 3px var(--color-x-glow);",
-          "to": "outline: 2px solid var(--color-x); outline-offset: 3px; box-shadow: 0 0 0 4px var(--color-x-glow), 0 0 12px var(--color-x-glow);",
-          "rationale": "Combines outline (neon border) + glow box-shadow for unmistakable keyboard focus"
-        },
-        {
-          "selector": ".btn-ghost:hover",
-          "css_add": "box-shadow: 0 0 8px var(--color-muted);",
-          "rationale": "Subtle neon border-echo on the ghost button's hover"
-        }
-      ]
-    },
-    {
-      "path": "index.html",
-      "section": ".board — entrance animation",
-      "changes": [
-        {
-          "property": "animation",
-          "value": "board-enter 0.5s ease-out both",
-          "rationale": "One-shot entrance on page load; fill-mode both prevents flash-of-invisible"
-        }
-      ]
-    },
-    {
-      "path": "index.html",
-      "section": "@media (prefers-reduced-motion: reduce) — NEW block at end of stylesheet",
-      "changes": [
-        {
-          "description": "Disable all keyframe animations on affected elements",
-          "selectors": [".board", ".cell.winning", ".cell.x-piece::after", ".cell.o-piece::after"],
-          "css": "animation: none !important;"
-        },
-        {
-          "description": "Minimize transition durations to near-zero (logical state still changes, just instantly)",
-          "selectors": [".cell", ".turn-indicator", ".score-card", ".btn", ".status-message"],
-          "css": "transition-duration: 0.01ms !important;"
-        }
-      ]
+      "path": "__tests__/game.dom.test.js",
+      "changes": "Update GAME_HTML constant to include mode-selector and difficulty-selector HTML elements matching the updated index.html structure. No changes to existing test logic."
     }
   ],
-  "new_files": [],
-  "css_architecture_notes": {
-    "no_js_changes_required": true,
-    "sibling_combinator_trick": "The .turn-indicator.is-x ~ .board CSS sibling selector pattern works because game.js already toggles is-x/is-o classes on #turnIndicator (via updateTurnIndicator()), and .board is a subsequent sibling in the DOM. This gives player-aware hover glow with zero new JavaScript.",
-    "pseudo_element_animation": "Animating ::after requires display:inline-block or display:block on the pseudo-element so CSS transforms apply. The font-size and color are inherited from the parent .cell, so adding display:inline-block is safe.",
-    "transform_on_winning_cells": "Adding transform:scale() to the winning-pulse keyframe works because .cell already has position:relative and overflow:hidden, preventing layout interference.",
-    "animation_fill_mode_both": "board-enter uses fill-mode:both so the element starts invisible before the animation fires (prevents FOUC on slow paints)."
-  },
-  "test_plan": [
-    "CSS property check: verify computed animation property on .cell.x-piece::after contains 'mark-appear' after a move is played",
-    "CSS property check: verify computed animation property on .cell.o-piece::after contains 'mark-appear' after O's move",
-    "CSS property check: verify computed animation on .cell.winning contains 'winning-pulse' after a win",
-    "CSS property check: verify computed animation on .board contains 'board-enter' on page load",
-    "Computed style check: verify .score-card.active-player has transform: scale(1.04) when active",
-    "Computed style check: verify .turn-indicator.is-x ~ .board .cell:not(.taken):hover has cyan box-shadow",
-    "Computed style check: verify .turn-indicator.is-o ~ .board .cell:not(.taken):hover has magenta box-shadow",
-    "Computed style check: verify .btn:focus-visible has both outline and box-shadow set",
-    "prefers-reduced-motion: mock matchMedia to return reduce preference; verify animation:none on .board, .cell.winning, ::after pseudo-elements",
-    "prefers-reduced-motion: verify transition-duration is <= 0.01ms on .cell and .btn when motion is reduced",
-    "Regression: run npm test — all 112+ existing Jest tests must still pass",
-    "Regression: run npx playwright test — all existing E2E tests must still pass",
-    "No JS library check: verify game.js contains no import/require for animation libraries (requestAnimationFrame usage only acceptable if already present)",
-    "Cross-browser: run Playwright tests in Chromium, Firefox, and WebKit to confirm keyframes render identically"
+  "new_files": [
+    {
+      "path": "__tests__/ai.logic.test.js",
+      "purpose": "Pure unit tests for all new AI logic functions using Jest node environment (no DOM). Covers: getEmptyCells correctness on empty/full/partial boards; randomMove validity (only empty cells, valid index range); minimax terminal state scoring (O-win, X-win, draw); minimax depth preference for faster wins; alpha-beta pruning result parity; getBestMove optimal blocking and winning moves; getBestMove center preference on empty board; board immutability invariant; getAIMove difficulty dispatch and statistical distribution tests."
+    },
+    {
+      "path": "__tests__/ai.dom.test.js",
+      "purpose": "DOM integration tests for mode selector UI and single-player game flow using Jest + jsdom. Covers: mode button active state and aria-pressed accuracy; difficulty selector show/hide toggling; difficulty button active states; score label switching (You/CPU vs Player X/O); AI auto-move after human click using jest.useFakeTimers; AI plays on empty cell; board locking during AI thinking; board unlocking after AI move; startNewGame cancels pending timeout; rapid-click guard; 2-player regression; full game cycle in single-player mode."
+    }
   ],
-  "rollback_plan": "All changes are confined to the embedded <style> block in index.html. No new files are created. No JS logic, package.json, or test infrastructure changes are made. Rollback options: (1) git checkout feature/css-animations-neon-effects -- index.html to restore prior state; (2) git revert HEAD if changes are already committed; (3) if partially through implementation, git diff index.html shows exactly what changed for surgical manual revert. No database, API, or dependency changes to unwind.",
+  "test_plan": [
+    "UNIT [ai.logic] getEmptyCells on empty board: returns [0,1,2,3,4,5,6,7,8]",
+    "UNIT [ai.logic] getEmptyCells on full board: returns []",
+    "UNIT [ai.logic] getEmptyCells on partial board: returns correct subset of null indices",
+    "UNIT [ai.logic] randomMove: always returns index where boardState[index] === null (200 iterations)",
+    "UNIT [ai.logic] randomMove: returned value always in range [0, 8] (200 iterations)",
+    "UNIT [ai.logic] randomMove on single-empty-cell board: always returns that specific index",
+    "UNIT [ai.logic] minimax O-wins immediately: returns positive score",
+    "UNIT [ai.logic] minimax X-wins immediately: returns negative score",
+    "UNIT [ai.logic] minimax draw board: returns exactly 0",
+    "UNIT [ai.logic] minimax depth preference: win at depth 1 scores higher than win at depth 3",
+    "UNIT [ai.logic] getBestMove blocks X win: board where X has 2-in-a-row, AI picks blocking cell",
+    "UNIT [ai.logic] getBestMove takes O win: board where O can win immediately, AI picks winning cell",
+    "UNIT [ai.logic] getBestMove center preference: on empty board, Hard returns index 4",
+    "UNIT [ai.logic] getBestMove returns -1 when board is full",
+    "UNIT [ai.logic] getBestMove board immutability: boardState identical before and after call",
+    "UNIT [ai.logic] getAIMove hard always optimal: 100 iterations on win-available board, always returns winning move",
+    "UNIT [ai.logic] getAIMove easy statistical: 200 iterations, picks non-optimal move significantly more than 50% of time",
+    "UNIT [ai.logic] getAIMove medium statistical: 500 iterations, optimal move rate between 20% and 70%",
+    "DOM [ai.dom] initial state: 2player button has .active and aria-pressed='true'",
+    "DOM [ai.dom] initial state: difficultySelector has class 'hidden'",
+    "DOM [ai.dom] click 'vs Computer': difficultySelector loses 'hidden', mode buttons update correctly",
+    "DOM [ai.dom] click '2 Player' after 1player: difficultySelector regains 'hidden'",
+    "DOM [ai.dom] click Easy button: Easy gets .active, Medium loses .active",
+    "DOM [ai.dom] click Hard button: Hard gets .active, Medium loses .active",
+    "DOM [ai.dom] switch to 1player: scoreCardX label = 'You', scoreCardO label = 'CPU'",
+    "DOM [ai.dom] switch back to 2player: labels revert to 'Player X' and 'Player O'",
+    "DOM [ai.dom] AI auto-move: in 1player mode after human clicks cell 0, runAllTimers() produces an O piece on the board",
+    "DOM [ai.dom] AI move on empty cell: AI-placed O is on a cell that was null before AI's turn",
+    "DOM [ai.dom] board locked: immediately after human click in 1player mode, board has class 'board--locked'",
+    "DOM [ai.dom] board unlocked: after runAllTimers(), board no longer has 'board--locked'",
+    "DOM [ai.dom] rapid-click guard: second human click during AI thinking does not place additional X mark",
+    "DOM [ai.dom] startNewGame cancels AI: click cell then New Game; runAllTimers(); board fully empty, no O placed",
+    "DOM [ai.dom] board unlocked after New Game during AI thinking",
+    "DOM [ai.dom] keyboard guard: Enter keydown during aiThinking does not place a mark",
+    "DOM [ai.dom] 2player regression: after X click in 2player mode, no AI auto-move fires",
+    "DOM [ai.dom] full single-player game cycle: reach win or draw correctly",
+    "REGRESSION: all existing game.logic.test.js tests pass",
+    "REGRESSION: all existing game.dom.test.js tests pass",
+    "REGRESSION: all other existing test files pass (browser-mode, checkwinner-switcher, coverage, exported-api, css-animations, keyboard-accessibility)"
+  ],
+  "rollback_plan": "All changes are confined to feature/ai-difficulty-selector branch, isolated from main. Rollback options: (1) Discard uncommitted changes: git restore index.html game.js __tests__/game.dom.test.js && git clean -fd __tests__/ai.logic.test.js __tests__/ai.dom.test.js. (2) Per-commit revert: git revert <commit-hash> creates a new undo commit while preserving history. (3) Branch reset: git reset --hard <last-good-sha> identified via git log --oneline. (4) Full branch deletion: git branch -D feature/ai-difficulty-selector then recreate from main. (5) Post-merge (worst case): git revert -m 1 <merge-commit-sha>. Risk is narrow — only 2 existing files modified, 2 new test files added, zero dependency or CI changes.",
   "risk_assessment": [
     {
-      "risk": "transform on .cell.winning breaking layout (overflow:hidden clips scale)",
-      "likelihood": "low",
-      "mitigation": "Keep scale factor small (1.03); test at all three viewport breakpoints; use margin-compensated scale if clipping is observed"
+      "risk": "Stale AI setTimeout fires after New Game, placing O on wrong cell",
+      "mitigation": "aiTimeoutId stored at module level; startNewGame() always calls clearTimeout(aiTimeoutId) before resetting. handleAIMove() also checks !gameOver as final guard."
     },
     {
-      "risk": "Sibling combinator (.turn-indicator.is-x ~ .board) failing if DOM order changes",
-      "likelihood": "low",
-      "mitigation": "DOM order is static HTML; document the dependency in a CSS comment so future refactors are aware"
+      "risk": "Rapid human clicks during 300ms AI delay cause double-move",
+      "mitigation": "Dual-layer: (a) CSS .board--locked .cell { pointer-events: none } blocks mouse clicks; (b) JS guard if (aiThinking && !isAIMove) return blocks keyboard events."
     },
     {
-      "risk": "display:inline-block on ::after disrupting cell text layout",
-      "likelihood": "low",
-      "mitigation": "Cell uses flexbox centering which handles inline-block children; no fixed-height constraint on ::after"
+      "risk": "AI timeout fires after mode switched to 2-player, injecting O into 2-player game",
+      "mitigation": "setGameMode() calls clearTimeout(aiTimeoutId) before startNewGame(), cancelling any pending AI callback."
     },
     {
-      "risk": "Board entrance animation causing layout shift (CLS) on slow connections",
-      "likelihood": "very low",
-      "mitigation": "fill-mode:both keeps the element invisible until animation starts, preventing reflow; translateY(24px) is a compositor-only property"
+      "risk": "minimax() permanently mutating shared board module variable",
+      "mitigation": "getBestMove() always passes [...board] (spread copy); minimax() backtracks boardState[i] = null after every recursive call. Covered by board immutability test."
+    },
+    {
+      "risk": "CSS sibling combinator breaking after inserting new elements between turn-indicator and board",
+      "mitigation": "General sibling combinator (~) matches any subsequent sibling, not only immediately adjacent. No CSS breakage occurs."
+    },
+    {
+      "risk": "Existing tests failing because init() looks up #modeSelector/#difficultySelector not in old GAME_HTML fixtures",
+      "mitigation": "Step 15 updates GAME_HTML in game.dom.test.js. init() uses null-safe guards (if (el) ...) for new element event binding."
     }
   ]
 }

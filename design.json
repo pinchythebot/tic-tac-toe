@@ -1,221 +1,225 @@
 {
   "feature": "Add AI Difficulty Selector (Easy / Medium / Hard)",
-  "branch_name": "feature/ai-difficulty-selector",
+  "branch_name": "feature/single-player-minimax-ai",
+
   "analysis": {
     "current_state": {
-      "game_mode": "2-player only — no AI or single-player support exists in game.js",
-      "ai_logic": "None — game.js has zero minimax, random-move, or difficulty logic",
-      "ui_components": "turn-indicator, 3x3 board grid, status-message, controls (New Game / Reset Score), scoreboard",
-      "css_design_tokens": "--color-x (#00f0ff cyan), --color-o (#ff00aa magenta), --color-win (#ffe600 gold), --color-muted (#555577), --color-border (#2a2a4a), --bg-surface (#141414), --bg-cell (#1a1a2e)",
-      "module_exports": "WIN_LINES, checkWinner, checkDraw, switchPlayer, checkWin, init, startNewGame, resetScore, handleMove, _getState, _setState",
-      "test_infrastructure": "Jest (jsdom) + Playwright; 12 test files covering logic, DOM, E2E, accessibility, CSS animations"
+      "summary": "Single-player minimax AI is already implemented. The core AI engine, game-mode switching, and board locking are all present. What is MISSING is the difficulty selector UI component and its wiring.",
+      "already_implemented": [
+        "minimax(boardState, depth, isMaximizing, alpha, beta) with alpha-beta pruning — lines 99-131 of game.js",
+        "getBestMove(boardState, diff) with easy/medium/hard tiers — lines 148-174 of game.js",
+        "difficulty module-level var defaulting to 'hard' — line 41 of game.js",
+        "gameMode module-level var ('single' | 'two-player') — line 40 of game.js",
+        "scheduleAIMove() + handleAIMove() async AI trigger with 400ms delay — game.js",
+        "lockBoard() / unlockBoard() DOM helpers (board--locked class) — game.js",
+        "setGameMode() function toggling 1-player/2-player UI and restarting game — game.js",
+        "Mode switcher HTML: '1 Player' / '2 Players' buttons in index.html",
+        "Mode switcher CSS: .mode-btn, .mode-btn--active (cyan neon) in index.html"
+      ],
+      "not_yet_implemented": [
+        "Difficulty selector UI: segmented control (Easy | Medium | Hard) in index.html",
+        "CSS for difficulty selector: neon active states per difficulty level",
+        "Visibility logic: difficulty selector shown only in single-player mode (.hidden class toggle)",
+        "setDifficulty(difficulty) function in game.js to update difficulty var and active button state",
+        "init() wiring: bind click events on .diff-btn elements",
+        "Score label updates: 'You' / 'CPU' labels in single-player mode (optional UX enhancement)",
+        "Tests for difficulty selector UI and setDifficulty() logic"
+      ],
+      "difficulty_spec_discrepancy": {
+        "feature_spec_easy": "Easy — picks a random empty cell (100% random)",
+        "current_code_easy": "80% random, 20% minimax (Math.random() < 0.80 returns randomMove)",
+        "feature_spec_medium": "Medium — uses minimax 40% of the time and random 60%",
+        "current_code_medium": "60% minimax, 40% random (Math.random() < 0.40 returns randomMove)",
+        "resolution": "Implementation must be corrected to match the feature spec: Easy = 100% random (remove minimax fallthrough for easy); Medium = 40% minimax / 60% random (change threshold to Math.random() < 0.60)"
+      }
     },
     "affected_files": ["index.html", "game.js"],
-    "new_test_files": ["__tests__/ai.logic.test.js", "__tests__/ai.dom.test.js"],
+    "new_test_files": [
+      "__tests__/ai.difficulty.test.js",
+      "__tests__/ai.difficulty-ui.test.js"
+    ],
     "key_constraints": [
-      "Human always plays X; AI always plays O in single-player mode",
-      "Easy: 100% random empty cell selection (fully beatable)",
-      "Medium: 40% minimax / 60% random (beatable with consistent play)",
-      "Hard: full minimax + alpha-beta pruning — provably unbeatable (optimal play = draw)",
       "Difficulty selector must be HIDDEN when 2-player mode is active; VISIBLE only in single-player mode",
-      "All neon styling must use existing CSS custom properties — no new color values except Easy green (#00ff88)",
-      "AI move must be scheduled asynchronously (300ms setTimeout) so human move renders before AI responds",
-      "Board must be interactively locked (pointer-events + JS guard) during AI thinking window",
-      "Pending AI timeout must be cancelled in startNewGame() and setGameMode() to prevent stale callbacks",
-      "minimax must NOT permanently mutate the passed boardState (must backtrack after every branch)",
-      "All existing 2-player tests must continue to pass without modification",
+      "Difficulty selector appears between mode-switcher and board (above board) in DOM",
+      "Active difficulty button uses neon styling consistent with existing theme (--color-x, --color-o CSS vars)",
+      "Easy: 100% random empty cell selection (fully beatable) — correct current implementation",
+      "Medium: 40% minimax / 60% random — correct current implementation",
+      "Hard: 100% minimax via full alpha-beta (already correctly implemented)",
+      "Default difficulty is 'medium' per UX convention (not 'hard' as currently coded)",
+      "All neon styling uses existing CSS custom properties; Easy may use #00ff88 green as accent",
+      "setDifficulty() must NOT restart the game — only updates the difficulty for the next AI move",
+      "All existing tests must continue to pass without modification",
       "No third-party libraries — pure vanilla JS"
     ],
-    "dom_order_dependency": "The CSS general sibling combinator (.turn-indicator.is-x ~ .board) remains valid when new elements are inserted between turn-indicator and board because ~ matches ANY subsequent sibling, not only the immediately adjacent one.",
-    "minimax_design": {
-      "ai_player": "O (maximizer)",
-      "human_player": "X (minimizer)",
-      "scoring": "O wins: +10 - depth (prefer faster wins); X wins: depth - 10 (negative, prefer slower losses); draw: 0",
-      "pruning": "Standard alpha-beta: alpha starts -Infinity, beta starts +Infinity; prune when beta <= alpha",
-      "difficulty_tiers": {
-        "easy": "100% random empty cell — Math.random() selects uniformly from getEmptyCells()",
-        "medium": "Math.random() < 0.4 uses getBestMove() (optimal); else uses randomMove() — 40% optimal / 60% random",
-        "hard": "Always getBestMove() via full minimax + alpha-beta — never loses"
-      }
+    "dom_insertion_point": "New difficulty-selector div placed after mode-switcher div and before #board. The CSS general sibling combinator (.turn-indicator.is-x ~ .board) remains valid because ~ matches any subsequent sibling.",
+    "css_design_tokens_available": {
+      "--color-x": "#00f0ff (cyan — Player X / Hard active state)",
+      "--color-x-glow": "#00f0ff88",
+      "--color-o": "#ff00aa (magenta — Player O / Medium active state)",
+      "--color-o-glow": "#ff00aa88",
+      "--color-muted": "#555577 (inactive button text)",
+      "--color-border": "#2a2a4a",
+      "--bg-surface": "#141414",
+      "--color-text": "#e0e0e0",
+      "easy_green": "#00ff88 (new accent for Easy active state only)"
     }
   },
+
   "implementation_plan": [
     {
       "step": 1,
-      "description": "Verify current branch is feature/ai-difficulty-selector (git branch --show-current). Confirm game.js and index.html are in baseline 2-player state.",
+      "description": "Verify current branch is feature/single-player-minimax-ai (git branch --show-current). Confirm game.js already has minimax, getBestMove, difficulty, gameMode, scheduleAIMove, setGameMode. Confirm index.html has mode-switcher HTML and CSS. No baseline changes needed.",
       "files": []
     },
     {
       "step": 2,
-      "description": "Add new module-level state variables to game.js after existing state block: gameMode ('2player'), aiDifficulty ('medium'), aiThinking (false), isAIMove (false), aiTimeoutId (null).",
+      "description": "Fix difficulty percentage discrepancy in game.js getBestMove(): change Easy from 80% random to 100% random by removing the easy-specific minimax fallthrough (just always return randomMove() for 'easy'); change Medium threshold from Math.random()<0.40 to Math.random()<0.60 so Medium is 60% random / 40% minimax, matching the feature specification.",
       "files": ["game.js"]
     },
     {
       "step": 3,
-      "description": "Add new DOM reference variables in the DOM Helpers section of game.js: modeSelector, difficultySelector, labelX, labelO.",
+      "description": "Change the default `difficulty` module-level variable in game.js from 'hard' to 'medium'. This aligns with the UX convention that Medium is the default selected difficulty when the difficulty selector first appears.",
       "files": ["game.js"]
     },
     {
       "step": 4,
-      "description": "Implement five pure AI helper functions in a new AI Logic section in game.js: (a) getEmptyCells(boardState) returns array of null indices; (b) randomMove(boardState) returns a random index from getEmptyCells(); (c) minimax(boardState, isMaximizing, depth, alpha, beta) with alpha-beta pruning and backtracking — O wins: +10-depth, X wins: depth-10, draw: 0; (d) getBestMove(boardState) iterates empty cells calling minimax on spread copies, returns highest-scoring index; (e) getAIMove(boardState, difficulty) dispatches to easy/medium/hard logic.",
+      "description": "Add `setDifficulty(diff)` function to game.js in the 'New Game / Reset Score / Mode' section. It: (1) sets `difficulty = diff`, (2) queries all .diff-btn elements and removes .active class from each, (3) adds .active class to the button whose data-difficulty attribute matches diff. Does NOT restart the game — takes effect on next AI move.",
       "files": ["game.js"]
     },
     {
       "step": 5,
-      "description": "Add lockBoard() (adds 'board--locked' class to #board) and unlockBoard() (removes it) DOM helpers to game.js. These work with CSS rule: .board--locked .cell { pointer-events: none; cursor: default; }",
+      "description": "Modify setGameMode() in game.js to also show/hide the difficulty selector element. After updating the mode button states, add: `const diffSel = document.getElementById('difficultySelector'); if (diffSel) diffSel.classList.toggle('hidden', mode !== 'single');`. This ensures difficulty selector is only visible in single-player mode.",
       "files": ["game.js"]
     },
     {
       "step": 6,
-      "description": "Add scheduleAIMove() — sets aiThinking=true, calls lockBoard(), stores setTimeout(handleAIMove, 300) in aiTimeoutId. Add handleAIMove() — clears aiTimeoutId, exits if gameOver, calls getAIMove([...board], aiDifficulty), if move !== -1 sets isAIMove=true, calls handleMove(move), resets isAIMove; unconditionally sets aiThinking=false and calls unlockBoard().",
+      "description": "Modify init() in game.js to cache and bind difficulty button events. After the existing btn1p/btn2p bindings, add: `document.querySelectorAll('.diff-btn').forEach(btn => { btn.addEventListener('click', () => setDifficulty(btn.dataset.difficulty)); });`. Also call setDifficulty('medium') at the end of init() to ensure the medium button starts with .active class when the difficulty selector first renders.",
       "files": ["game.js"]
     },
     {
       "step": 7,
-      "description": "Modify handleMove() in game.js: (a) add guard 'if (aiThinking && !isAIMove) return' immediately after existing first guard; (b) at end of function after updateScoreCardHighlight(), add AI trigger: 'if (gameMode === \"1player\" && !gameOver && currentPlayer === \"O\") { scheduleAIMove(); }'",
+      "description": "Update module.exports in game.js to add setDifficulty to the exported symbols. Also update _getState to include the current difficulty value so test harnesses can inspect it.",
       "files": ["game.js"]
     },
     {
       "step": 8,
-      "description": "Modify startNewGame() in game.js — prepend: cancel pending AI timeout (clearTimeout(aiTimeoutId), set to null), reset aiThinking=false, isAIMove=false, call unlockBoard().",
-      "files": ["game.js"]
+      "description": "Add CSS for the difficulty selector in index.html's <style> block, placed immediately after the existing mode-switcher CSS rules (before responsive tweaks). New rules: (a) `.difficulty-selector` — same pill container style as .mode-switcher (flex row, bg-surface, color-border, border-radius 999px, padding 4px, width fit-content); (b) `.diff-btn` — same base style as .mode-btn (transparent background, color-muted, rounded, transitions on color/box-shadow 0.15s ease); (c) `.diff-btn:focus-visible` — same neon focus ring as .mode-btn:focus-visible; (d) `.diff-btn.active[data-difficulty='easy']` — color:#00ff88, box-shadow:0 0 8px #00ff8866, inner border via outline:1px solid #00ff88; (e) `.diff-btn.active[data-difficulty='medium']` — color:var(--color-o), outline:1px solid var(--color-o), box-shadow:0 0 8px var(--color-o-glow); (f) `.diff-btn.active[data-difficulty='hard']` — color:var(--color-x), outline:1px solid var(--color-x), box-shadow:0 0 8px var(--color-x-glow); (g) `.difficulty-selector.hidden { display: none; }`. (h) Add .diff-btn to the prefers-reduced-motion transition-duration:0.01ms block.",
+      "files": ["index.html"]
     },
     {
       "step": 9,
-      "description": "Add setGameMode(mode) to game.js: updates gameMode, toggles .active class and aria-pressed on mode buttons, shows/hides difficultySelector via .hidden class, updates score labels (Player X/Player O <-> You/CPU), cancels any pending AI timeout, calls startNewGame().",
-      "files": ["game.js"]
+      "description": "Add HTML for the difficulty selector to index.html, inserted immediately after the closing tag of the mode-switcher div and before the opening of #board. Structure: `<div class='difficulty-selector hidden' id='difficultySelector' role='group' aria-label='AI difficulty'>` containing three buttons: `<button class='diff-btn' data-difficulty='easy' type='button' aria-pressed='false'>Easy</button>`, `<button class='diff-btn active' data-difficulty='medium' type='button' aria-pressed='true'>Medium</button>`, `<button class='diff-btn' data-difficulty='hard' type='button' aria-pressed='false'>Hard</button>`. The selector starts hidden because game mode defaults to 2-player. Medium starts with .active class and aria-pressed='true' to match the default difficulty.",
+      "files": ["index.html"]
     },
     {
       "step": 10,
-      "description": "Add setDifficulty(difficulty) to game.js: updates aiDifficulty, removes .active from all .diff-btn elements, adds .active to the matching button.",
-      "files": ["game.js"]
-    },
-    {
-      "step": 11,
-      "description": "Modify init() in game.js: cache modeSelector, difficultySelector, labelX, labelO DOM references; bind click listeners to all .mode-btn elements (call setGameMode(btn.dataset.mode)); bind click listeners to all .diff-btn elements (call setDifficulty(btn.dataset.difficulty)).",
-      "files": ["game.js"]
-    },
-    {
-      "step": 12,
-      "description": "Update module.exports in game.js: add getEmptyCells, randomMove, minimax, getBestMove, getAIMove, lockBoard, unlockBoard, scheduleAIMove, setGameMode, setDifficulty, _getAIState (() => ({ gameMode, aiDifficulty, aiThinking, isAIMove })). Update _setState to also accept gameMode, aiDifficulty, aiThinking, isAIMove fields.",
-      "files": ["game.js"]
-    },
-    {
-      "step": 13,
-      "description": "Add CSS in index.html <style> block before responsive tweaks section: .mode-selector and .difficulty-selector (pill container — flex row, bg-surface, color-border, border-radius 999px, padding 4px); .mode-btn and .diff-btn (transparent background, color-muted, rounded, transitions); .mode-btn.active (color-x, outline 1px solid color-x, neon glow); .diff-btn.active[data-difficulty='easy'] (#00ff88 green neon); .diff-btn.active[data-difficulty='medium'] (color-o magenta neon); .diff-btn.active[data-difficulty='hard'] (color-x cyan neon); .difficulty-selector.hidden { display: none }; add mode-btn and diff-btn to prefers-reduced-motion transition block.",
-      "files": ["index.html"]
-    },
-    {
-      "step": 14,
-      "description": "Add HTML to index.html between #turnIndicator and #board: mode-selector div (role='group', aria-label='Game mode') with two mode-btn buttons (2player active by default); difficulty-selector div (role='group', aria-label='AI difficulty', class includes 'hidden') with three diff-btn buttons (medium active by default). All buttons have type='button' and aria-pressed attributes.",
-      "files": ["index.html"]
-    },
-    {
-      "step": 15,
-      "description": "Update GAME_HTML fixture in __tests__/game.dom.test.js to include new mode-selector and difficulty-selector HTML elements so init() can cache those DOM references without null errors. No changes to existing test cases.",
+      "description": "Update GAME_HTML fixture in __tests__/game.dom.test.js to include the new difficulty-selector HTML element (matching the structure added to index.html). Without this, init() will run querySelectorAll('.diff-btn') on a document that lacks those elements, and setDifficulty() will silently no-op instead of setting active states. All existing test assertions remain unchanged.",
       "files": ["__tests__/game.dom.test.js"]
     },
     {
-      "step": 16,
-      "description": "Write __tests__/ai.logic.test.js: pure unit tests for getEmptyCells, randomMove, minimax, getBestMove, getAIMove using Jest with node environment (no DOM). See test_plan for full case list.",
-      "files": ["__tests__/ai.logic.test.js"]
+      "step": 11,
+      "description": "Write __tests__/ai.difficulty.test.js: pure-logic unit tests for getBestMove() difficulty tiers and the corrected Easy/Medium percentages. Uses Jest node environment (no DOM). Test cases per test_plan section.",
+      "files": ["__tests__/ai.difficulty.test.js"]
     },
     {
-      "step": 17,
-      "description": "Write __tests__/ai.dom.test.js: DOM integration tests for mode selector UI, difficulty selector visibility, AI auto-move behavior (jest.useFakeTimers), board locking, startNewGame cancellation, score label switching, and 2-player regression guard. See test_plan for full case list.",
-      "files": ["__tests__/ai.dom.test.js"]
+      "step": 12,
+      "description": "Write __tests__/ai.difficulty-ui.test.js: DOM integration tests for difficulty selector UI using Jest + jsdom. Includes its own GAME_HTML fixture (mode-switcher + difficulty-selector + board). Test cases per test_plan section.",
+      "files": ["__tests__/ai.difficulty-ui.test.js"]
+    },
+    {
+      "step": 13,
+      "description": "Run full test suite: `npm test` to confirm all existing tests plus new tests pass. Run `npx playwright test` to verify E2E tests. Fix any regressions before committing.",
+      "files": []
     }
   ],
+
   "file_changes": [
     {
       "path": "game.js",
-      "changes": "Add 5 new module-level state vars (gameMode, aiDifficulty, aiThinking, isAIMove, aiTimeoutId). Add 4 DOM ref vars (modeSelector, difficultySelector, labelX, labelO). Add AI Logic section with 5 pure functions (getEmptyCells, randomMove, minimax with alpha-beta and backtracking, getBestMove, getAIMove). Add lockBoard/unlockBoard DOM helpers. Add scheduleAIMove/handleAIMove async AI trigger. Modify handleMove() with aiThinking guard and AI trigger at end. Modify startNewGame() with timeout cancellation prefix. Add setGameMode() and setDifficulty() functions. Modify init() to cache new DOM refs and bind new events. Extend module.exports with all new symbols and update _getState/_setState."
+      "changes": "1. Fix getBestMove() Easy difficulty: change from 80% random to 100% random by making easy always return randomMove() without minimax fallthrough. 2. Fix getBestMove() Medium difficulty: change threshold from Math.random()<0.40 to Math.random()<0.60 so Medium is 60% random / 40% minimax per feature spec. 3. Change default difficulty var from 'hard' to 'medium'. 4. Add setDifficulty(diff) function: updates difficulty var, removes .active from all .diff-btn elements, adds .active to matching button. 5. Modify setGameMode(): add show/hide of #difficultySelector via .hidden class toggle. 6. Modify init(): bind .diff-btn click events to setDifficulty(); call setDifficulty('medium') to initialize active state. 7. Add setDifficulty to module.exports; update _getState to include difficulty."
     },
     {
       "path": "index.html",
-      "changes": "Add CSS for .mode-selector, .difficulty-selector (pill containers), .mode-btn, .diff-btn (base styles), active neon states per difficulty, .difficulty-selector.hidden, prefers-reduced-motion entries. Add HTML: mode-selector div with 2player/1player buttons (2player active by default), difficulty-selector div with easy/medium/hard buttons (medium active by default, hidden class on container). Both placed between #turnIndicator and #board."
+      "changes": "1. Add CSS in <style> block after mode-switcher rules: .difficulty-selector (same pill container as .mode-switcher), .diff-btn (same base as .mode-btn), .diff-btn:focus-visible (neon focus ring), .diff-btn.active[data-difficulty='easy'] (#00ff88 green), .diff-btn.active[data-difficulty='medium'] (--color-o magenta), .diff-btn.active[data-difficulty='hard'] (--color-x cyan), .difficulty-selector.hidden {display:none}, add .diff-btn to prefers-reduced-motion block. 2. Add HTML after mode-switcher div and before #board: difficulty-selector div (id=difficultySelector, role=group, aria-label=AI difficulty, class includes 'hidden') containing Easy/Medium/Hard diff-btn buttons (Medium has .active and aria-pressed=true by default)."
     },
     {
       "path": "__tests__/game.dom.test.js",
-      "changes": "Update GAME_HTML constant to include mode-selector and difficulty-selector HTML elements matching the updated index.html structure. No changes to existing test logic."
+      "changes": "Update the GAME_HTML constant to include the difficulty-selector HTML (matching updated index.html structure) so init() binds .diff-btn events and setDifficulty() can find the buttons. No changes to existing test logic."
     }
   ],
+
   "new_files": [
     {
-      "path": "__tests__/ai.logic.test.js",
-      "purpose": "Pure unit tests for all new AI logic functions using Jest node environment (no DOM). Covers: getEmptyCells correctness on empty/full/partial boards; randomMove validity (only empty cells, valid index range); minimax terminal state scoring (O-win, X-win, draw); minimax depth preference for faster wins; alpha-beta pruning result parity; getBestMove optimal blocking and winning moves; getBestMove center preference on empty board; board immutability invariant; getAIMove difficulty dispatch and statistical distribution tests."
+      "path": "__tests__/ai.difficulty.test.js",
+      "purpose": "Pure unit tests for getBestMove() difficulty dispatch logic using Jest node environment (no DOM required). Validates: Easy always returns a random cell (never the optimal minimax move), Medium exhibits ~40% optimal move rate (statistical test with tolerance), Hard always picks the optimal move (blocking win, taking win). Also verifies getBestMove() never mutates the passed boardState and returns -1 on full boards."
     },
     {
-      "path": "__tests__/ai.dom.test.js",
-      "purpose": "DOM integration tests for mode selector UI and single-player game flow using Jest + jsdom. Covers: mode button active state and aria-pressed accuracy; difficulty selector show/hide toggling; difficulty button active states; score label switching (You/CPU vs Player X/O); AI auto-move after human click using jest.useFakeTimers; AI plays on empty cell; board locking during AI thinking; board unlocking after AI move; startNewGame cancels pending timeout; rapid-click guard; 2-player regression; full game cycle in single-player mode."
+      "path": "__tests__/ai.difficulty-ui.test.js",
+      "purpose": "DOM integration tests for the difficulty selector UI using Jest + jsdom. Validates: initial state (difficulty selector hidden, Medium button has .active), switching to 1player mode reveals difficulty selector, switching back to 2player hides it, clicking Easy sets Easy .active and removes Medium .active, clicking Hard sets Hard .active, setDifficulty() updates the difficulty module state accessed via _getState(), AI moves in 1player mode respect the selected difficulty (Hard always blocks X's win)."
     }
   ],
+
   "test_plan": [
-    "UNIT [ai.logic] getEmptyCells on empty board: returns [0,1,2,3,4,5,6,7,8]",
-    "UNIT [ai.logic] getEmptyCells on full board: returns []",
-    "UNIT [ai.logic] getEmptyCells on partial board: returns correct subset of null indices",
-    "UNIT [ai.logic] randomMove: always returns index where boardState[index] === null (200 iterations)",
-    "UNIT [ai.logic] randomMove: returned value always in range [0, 8] (200 iterations)",
-    "UNIT [ai.logic] randomMove on single-empty-cell board: always returns that specific index",
-    "UNIT [ai.logic] minimax O-wins immediately: returns positive score",
-    "UNIT [ai.logic] minimax X-wins immediately: returns negative score",
-    "UNIT [ai.logic] minimax draw board: returns exactly 0",
-    "UNIT [ai.logic] minimax depth preference: win at depth 1 scores higher than win at depth 3",
-    "UNIT [ai.logic] getBestMove blocks X win: board where X has 2-in-a-row, AI picks blocking cell",
-    "UNIT [ai.logic] getBestMove takes O win: board where O can win immediately, AI picks winning cell",
-    "UNIT [ai.logic] getBestMove center preference: on empty board, Hard returns index 4",
-    "UNIT [ai.logic] getBestMove returns -1 when board is full",
-    "UNIT [ai.logic] getBestMove board immutability: boardState identical before and after call",
-    "UNIT [ai.logic] getAIMove hard always optimal: 100 iterations on win-available board, always returns winning move",
-    "UNIT [ai.logic] getAIMove easy statistical: 200 iterations, picks non-optimal move significantly more than 50% of time",
-    "UNIT [ai.logic] getAIMove medium statistical: 500 iterations, optimal move rate between 20% and 70%",
-    "DOM [ai.dom] initial state: 2player button has .active and aria-pressed='true'",
-    "DOM [ai.dom] initial state: difficultySelector has class 'hidden'",
-    "DOM [ai.dom] click 'vs Computer': difficultySelector loses 'hidden', mode buttons update correctly",
-    "DOM [ai.dom] click '2 Player' after 1player: difficultySelector regains 'hidden'",
-    "DOM [ai.dom] click Easy button: Easy gets .active, Medium loses .active",
-    "DOM [ai.dom] click Hard button: Hard gets .active, Medium loses .active",
-    "DOM [ai.dom] switch to 1player: scoreCardX label = 'You', scoreCardO label = 'CPU'",
-    "DOM [ai.dom] switch back to 2player: labels revert to 'Player X' and 'Player O'",
-    "DOM [ai.dom] AI auto-move: in 1player mode after human clicks cell 0, runAllTimers() produces an O piece on the board",
-    "DOM [ai.dom] AI move on empty cell: AI-placed O is on a cell that was null before AI's turn",
-    "DOM [ai.dom] board locked: immediately after human click in 1player mode, board has class 'board--locked'",
-    "DOM [ai.dom] board unlocked: after runAllTimers(), board no longer has 'board--locked'",
-    "DOM [ai.dom] rapid-click guard: second human click during AI thinking does not place additional X mark",
-    "DOM [ai.dom] startNewGame cancels AI: click cell then New Game; runAllTimers(); board fully empty, no O placed",
-    "DOM [ai.dom] board unlocked after New Game during AI thinking",
-    "DOM [ai.dom] keyboard guard: Enter keydown during aiThinking does not place a mark",
-    "DOM [ai.dom] 2player regression: after X click in 2player mode, no AI auto-move fires",
-    "DOM [ai.dom] full single-player game cycle: reach win or draw correctly",
+    "UNIT [ai.difficulty] Easy always random: run getBestMove(board, 'easy') 500 times on a board where one cell is provably optimal; verify optimal cell is chosen <= 10% of trials (i.e., essentially random)",
+    "UNIT [ai.difficulty] Easy never uses minimax: given board where O can win in exactly one cell, easy difficulty picks that cell with ~1/N probability (N = number of empty cells), not with 100% certainty",
+    "UNIT [ai.difficulty] Medium statistical rate: run getBestMove(board, 'medium') 500 times; on a board where optimal move is unique, verify optimal chosen between 25% and 60% (target ~40%)",
+    "UNIT [ai.difficulty] Hard always optimal — blocks X win: board where X has 2-in-a-row, hard ALWAYS returns blocking cell (100 trials)",
+    "UNIT [ai.difficulty] Hard always optimal — takes O win: board where O can win immediately, hard ALWAYS returns winning cell (100 trials)",
+    "UNIT [ai.difficulty] getBestMove returns -1 on full board",
+    "UNIT [ai.difficulty] getBestMove never mutates boardState: array identical before and after call (verified with JSON.stringify comparison)",
+    "UNIT [ai.difficulty] Hard center preference: on empty board, hard returns index 4",
+    "DOM [ai.difficulty-ui] initial state: difficulty-selector has class 'hidden'",
+    "DOM [ai.difficulty-ui] initial state: Medium diff-btn has class 'active' and aria-pressed='true'",
+    "DOM [ai.difficulty-ui] initial state: Easy and Hard diff-btn do NOT have class 'active'",
+    "DOM [ai.difficulty-ui] switch to 1player: difficulty-selector loses 'hidden' class",
+    "DOM [ai.difficulty-ui] switch back to 2player: difficulty-selector regains 'hidden' class",
+    "DOM [ai.difficulty-ui] click Easy: Easy gets .active, Medium loses .active, Hard unchanged",
+    "DOM [ai.difficulty-ui] click Easy: _getAIState() shows difficulty === 'easy'",
+    "DOM [ai.difficulty-ui] click Hard: Hard gets .active, Medium loses .active, Easy unchanged",
+    "DOM [ai.difficulty-ui] click Hard: _getAIState() shows difficulty === 'hard'",
+    "DOM [ai.difficulty-ui] click Medium after Hard: Medium gets .active, Hard loses .active",
+    "DOM [ai.difficulty-ui] setDifficulty does not restart game: board state unchanged after calling setDifficulty()",
+    "DOM [ai.difficulty-ui] Hard AI blocks X: inject board where X has 2-in-a-row with one empty cell; after human click + timer advance, AI plays the blocking cell",
+    "DOM [ai.difficulty-ui] Easy AI random: run 20 trials where only one cell remains empty; AI always picks it (trivial — only option), and for multi-cell boards AI picks non-optimal moves more than 0% of time",
+    "DOM [ai.difficulty-ui] difficulty persists across games: setDifficulty('easy'), click New Game, _getAIState() shows difficulty still 'easy'",
+    "DOM [ai.difficulty-ui] aria-pressed updates: clicking Easy sets Easy aria-pressed='true', Medium aria-pressed='false', Hard aria-pressed='false'",
     "REGRESSION: all existing game.logic.test.js tests pass",
-    "REGRESSION: all existing game.dom.test.js tests pass",
-    "REGRESSION: all other existing test files pass (browser-mode, checkwinner-switcher, coverage, exported-api, css-animations, keyboard-accessibility)"
+    "REGRESSION: all existing game.dom.test.js tests pass (2-player move flow, turn switching, win/draw, scores, New Game, Reset Score, keyboard, accessibility)",
+    "REGRESSION: all other existing test files pass (browser-mode, checkwinner-switcher, coverage, exported-api, css-animations, keyboard-accessibility, singleplayer if present)"
   ],
-  "rollback_plan": "All changes are confined to feature/ai-difficulty-selector branch, isolated from main. Rollback options: (1) Discard uncommitted changes: git restore index.html game.js __tests__/game.dom.test.js && git clean -fd __tests__/ai.logic.test.js __tests__/ai.dom.test.js. (2) Per-commit revert: git revert <commit-hash> creates a new undo commit while preserving history. (3) Branch reset: git reset --hard <last-good-sha> identified via git log --oneline. (4) Full branch deletion: git branch -D feature/ai-difficulty-selector then recreate from main. (5) Post-merge (worst case): git revert -m 1 <merge-commit-sha>. Risk is narrow — only 2 existing files modified, 2 new test files added, zero dependency or CI changes.",
+
+  "rollback_plan": "All changes are confined to feature/single-player-minimax-ai branch, isolated from main. Rollback options:\n\n1. DISCARD UNCOMMITTED CHANGES: git restore index.html game.js __tests__/game.dom.test.js; git clean -fd __tests__/ai.difficulty.test.js __tests__/ai.difficulty-ui.test.js\n\n2. PER-COMMIT REVERT: git revert <commit-hash> creates an undo commit preserving history (safe for shared branches).\n\n3. BRANCH RESET: git reset --hard <last-good-sha> — use git log --oneline to identify SHA. The last clean SHA before this feature's commits is available in git log.\n\n4. FULL BRANCH DELETION: git branch -D feature/single-player-minimax-ai and recreate from main if abandoned.\n\n5. POST-MERGE (worst case): git revert -m 1 <merge-commit-sha> on main.\n\nRisk profile: NARROW — modifies getBestMove() percentages (existing logic, low risk), adds setDifficulty() (new function, no side-effects on existing code paths), modifies setGameMode() to show/hide one new element (guarded by null check). Two new CSS blocks and one new HTML element added. Two new test files. Zero dependency changes.",
+
   "risk_assessment": [
     {
-      "risk": "Stale AI setTimeout fires after New Game, placing O on wrong cell",
-      "mitigation": "aiTimeoutId stored at module level; startNewGame() always calls clearTimeout(aiTimeoutId) before resetting. handleAIMove() also checks !gameOver as final guard."
+      "risk": "Changing Easy from 80% to 100% random or Medium from 60% to 40% minimax breaks existing AI unit tests that assumed the old percentages",
+      "likelihood": "Medium if existing tests hardcode the old thresholds",
+      "mitigation": "Review __tests__/game.ai.test.js and __tests__/game.singleplayer.test.js for percentage-specific assertions; update statistical bounds to match new spec. Run npm test after each change."
     },
     {
-      "risk": "Rapid human clicks during 300ms AI delay cause double-move",
-      "mitigation": "Dual-layer: (a) CSS .board--locked .cell { pointer-events: none } blocks mouse clicks; (b) JS guard if (aiThinking && !isAIMove) return blocks keyboard events."
+      "risk": "setGameMode() calling getElementById('difficultySelector') returning null if element isn't in the DOM during tests",
+      "likelihood": "Low — guarded by null check",
+      "mitigation": "setGameMode() wraps difficultySelector access in `if (diffSel)` guard. GAME_HTML in test files updated to include the element."
     },
     {
-      "risk": "AI timeout fires after mode switched to 2-player, injecting O into 2-player game",
-      "mitigation": "setGameMode() calls clearTimeout(aiTimeoutId) before startNewGame(), cancelling any pending AI callback."
+      "risk": "Difficulty selector showing in 2-player mode if setGameMode() is called before difficulty-selector HTML is added",
+      "likelihood": "None — game defaults to 2-player with hidden selector",
+      "mitigation": "Difficulty selector HTML includes 'hidden' class by default. setGameMode() only removes 'hidden' when mode === 'single'."
     },
     {
-      "risk": "minimax() permanently mutating shared board module variable",
-      "mitigation": "getBestMove() always passes [...board] (spread copy); minimax() backtracks boardState[i] = null after every recursive call. Covered by board immutability test."
+      "risk": "CSS sibling combinator (.turn-indicator.is-x ~ .board) affected by inserting difficulty-selector element between turn-indicator and board",
+      "likelihood": "None — by CSS specification",
+      "mitigation": "General sibling combinator (~) matches ANY subsequent sibling. Inserting elements between turn-indicator and board does not affect the hover glow rule."
     },
     {
-      "risk": "CSS sibling combinator breaking after inserting new elements between turn-indicator and board",
-      "mitigation": "General sibling combinator (~) matches any subsequent sibling, not only immediately adjacent. No CSS breakage occurs."
+      "risk": "setDifficulty() called before DOM is ready (during module load) causing null querySelectorAll errors",
+      "likelihood": "None — setDifficulty() only called from init() (after DOMContentLoaded) and click handlers",
+      "mitigation": "Function is never called at module-load time. The module-level `difficulty = 'medium'` variable is set statically; setDifficulty() just syncs the UI to match."
     },
     {
-      "risk": "Existing tests failing because init() looks up #modeSelector/#difficultySelector not in old GAME_HTML fixtures",
-      "mitigation": "Step 15 updates GAME_HTML in game.dom.test.js. init() uses null-safe guards (if (el) ...) for new element event binding."
+      "risk": "Default difficulty changing from 'hard' to 'medium' causing Hard-mode-dependent tests to use wrong difficulty",
+      "likelihood": "Low",
+      "mitigation": "Tests that require a specific difficulty should call _setState({ difficulty: 'hard' }) or setDifficulty('hard') explicitly rather than relying on the default. Review existing single-player tests."
     }
   ]
 }
